@@ -4,7 +4,7 @@
 // - protoc             v6.33.2
 // source: protos/nodeComm.proto
 
-package proto
+package protos
 
 import (
 	context "context"
@@ -19,9 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Node_GetValue_FullMethodName     = "/proto.Node/GetValue"
-	Node_InitiateMove_FullMethodName = "/proto.Node/InitiateMove"
-	Node_MoveData_FullMethodName     = "/proto.Node/MoveData"
+	Node_GetValue_FullMethodName     = "/protos.Node/GetValue"
+	Node_InitiateMove_FullMethodName = "/protos.Node/InitiateMove"
+	Node_MoveData_FullMethodName     = "/protos.Node/MoveData"
 )
 
 // NodeClient is the client API for Node service.
@@ -178,7 +178,7 @@ type Node_MoveDataServer = grpc.ServerStreamingServer[Data]
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Node_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.Node",
+	ServiceName: "protos.Node",
 	HandlerType: (*NodeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

@@ -1,7 +1,7 @@
 syntax = "proto3";
-package proto;
+package protos;
 
-option go_package = "github.com/utterwqlnut/utterdb/proto";
+option go_package = "github.com/utterwqlnut/utterdb/protos";
 
 service Node {
   rpc GetValue(Request) returns (Value) {}

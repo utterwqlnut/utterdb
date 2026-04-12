@@ -4,7 +4,7 @@
 // 	protoc        v6.33.2
 // source: protos/nodeComm.proto
 
-package proto
+package protos
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -297,24 +297,24 @@ var File_protos_nodeComm_proto protoreflect.FileDescriptor
 
 const file_protos_nodeComm_proto_rawDesc = "" +
 	"\n" +
-	"\x15protos/nodeComm.proto\x12\x05proto\"\x1b\n" +
+	"\x15protos/nodeComm.proto\x12\x06protos\"\x1b\n" +
 	"\aRequest\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\"\x1d\n" +
 	"\x05Value\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\tR\x05value\"I\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\"J\n" +
 	"\x05NodeT\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12'\n" +
-	"\bvnode_id\x18\x02 \x01(\v2\f.proto.VNodeR\avnodeId\"\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12(\n" +
+	"\bvnode_id\x18\x02 \x01(\v2\r.protos.VNodeR\avnodeId\"\x17\n" +
 	"\x05VNode\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\a\n" +
 	"\x05Empty\".\n" +
 	"\x04Data\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value2\x8b\x01\n" +
-	"\x04Node\x12*\n" +
-	"\bGetValue\x12\x0e.proto.Request\x1a\f.proto.Value\"\x00\x12,\n" +
-	"\fInitiateMove\x12\f.proto.NodeT\x1a\f.proto.Empty\"\x00\x12)\n" +
-	"\bMoveData\x12\f.proto.VNode\x1a\v.proto.Data\"\x000\x01B&Z$github.com/utterwqlnut/utterdb/protob\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value2\x91\x01\n" +
+	"\x04Node\x12,\n" +
+	"\bGetValue\x12\x0f.protos.Request\x1a\r.protos.Value\"\x00\x12.\n" +
+	"\fInitiateMove\x12\r.protos.NodeT\x1a\r.protos.Empty\"\x00\x12+\n" +
+	"\bMoveData\x12\r.protos.VNode\x1a\f.protos.Data\"\x000\x01B'Z%github.com/utterwqlnut/utterdb/protosb\x06proto3"
 
 var (
 	file_protos_nodeComm_proto_rawDescOnce sync.Once
@@ -330,21 +330,21 @@ func file_protos_nodeComm_proto_rawDescGZIP() []byte {
 
 var file_protos_nodeComm_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_protos_nodeComm_proto_goTypes = []any{
-	(*Request)(nil), // 0: proto.Request
-	(*Value)(nil),   // 1: proto.Value
-	(*NodeT)(nil),   // 2: proto.NodeT
-	(*VNode)(nil),   // 3: proto.VNode
-	(*Empty)(nil),   // 4: proto.Empty
-	(*Data)(nil),    // 5: proto.Data
+	(*Request)(nil), // 0: protos.Request
+	(*Value)(nil),   // 1: protos.Value
+	(*NodeT)(nil),   // 2: protos.NodeT
+	(*VNode)(nil),   // 3: protos.VNode
+	(*Empty)(nil),   // 4: protos.Empty
+	(*Data)(nil),    // 5: protos.Data
 }
 var file_protos_nodeComm_proto_depIdxs = []int32{
-	3, // 0: proto.NodeT.vnode_id:type_name -> proto.VNode
-	0, // 1: proto.Node.GetValue:input_type -> proto.Request
-	2, // 2: proto.Node.InitiateMove:input_type -> proto.NodeT
-	3, // 3: proto.Node.MoveData:input_type -> proto.VNode
-	1, // 4: proto.Node.GetValue:output_type -> proto.Value
-	4, // 5: proto.Node.InitiateMove:output_type -> proto.Empty
-	5, // 6: proto.Node.MoveData:output_type -> proto.Data
+	3, // 0: protos.NodeT.vnode_id:type_name -> protos.VNode
+	0, // 1: protos.Node.GetValue:input_type -> protos.Request
+	2, // 2: protos.Node.InitiateMove:input_type -> protos.NodeT
+	3, // 3: protos.Node.MoveData:input_type -> protos.VNode
+	1, // 4: protos.Node.GetValue:output_type -> protos.Value
+	4, // 5: protos.Node.InitiateMove:output_type -> protos.Empty
+	5, // 6: protos.Node.MoveData:output_type -> protos.Data
 	4, // [4:7] is the sub-list for method output_type
 	1, // [1:4] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
