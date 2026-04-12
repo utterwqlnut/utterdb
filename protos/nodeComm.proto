@@ -1,0 +1,34 @@
+syntax = "proto3";
+package proto;
+
+option go_package = "github.com/utterwqlnut/utterdb/proto";
+
+service Node {
+  rpc GetValue(Request) returns (Value) {}
+  rpc InitiateMove(NodeT) returns (Empty) {}
+  rpc MoveData(VNode) returns (stream Data) {}
+}
+
+message Request {
+  string key = 1;
+}
+
+message Value {
+  string value = 1;
+}
+
+message NodeT {
+  string node_id = 1;
+  VNode vnode_id = 2;
+}
+
+message VNode {
+  string id = 1;
+}
+
+message Empty {}
+
+message Data {
+  string key = 1;
+  string value = 2;
+}
