@@ -19,7 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Node_GetValue_FullMethodName     = "/protos.Node/GetValue"
+	Node_Get_FullMethodName          = "/protos.Node/Get"
+	Node_Erase_FullMethodName        = "/protos.Node/Erase"
+	Node_Write_FullMethodName        = "/protos.Node/Write"
 	Node_InitiateMove_FullMethodName = "/protos.Node/InitiateMove"
 	Node_MoveData_FullMethodName     = "/protos.Node/MoveData"
 )
@@ -28,7 +30,9 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeClient interface {
-	GetValue(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Value, error)
+	Get(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Value, error)
+	Erase(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Empty, error)
+	Write(ctx context.Context, in *Data, opts ...grpc.CallOption) (*Empty, error)
 	InitiateMove(ctx context.Context, in *NodeT, opts ...grpc.CallOption) (*Empty, error)
 	MoveData(ctx context.Context, in *VNode, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Data], error)
 }
@@ -41,10 +45,30 @@ func NewNodeClient(cc grpc.ClientConnInterface) NodeClient {
 	return &nodeClient{cc}
 }
 
-func (c *nodeClient) GetValue(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Value, error) {
+func (c *nodeClient) Get(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Value, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Value)
-	err := c.cc.Invoke(ctx, Node_GetValue_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Node_Get_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) Erase(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, Node_Erase_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) Write(ctx context.Context, in *Data, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, Node_Write_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +108,9 @@ type Node_MoveDataClient = grpc.ServerStreamingClient[Data]
 // All implementations must embed UnimplementedNodeServer
 // for forward compatibility.
 type NodeServer interface {
-	GetValue(context.Context, *Request) (*Value, error)
+	Get(context.Context, *Request) (*Value, error)
+	Erase(context.Context, *Request) (*Empty, error)
+	Write(context.Context, *Data) (*Empty, error)
 	InitiateMove(context.Context, *NodeT) (*Empty, error)
 	MoveData(*VNode, grpc.ServerStreamingServer[Data]) error
 	mustEmbedUnimplementedNodeServer()
@@ -97,8 +123,14 @@ type NodeServer interface {
 // pointer dereference when methods are called.
 type UnimplementedNodeServer struct{}
 
-func (UnimplementedNodeServer) GetValue(context.Context, *Request) (*Value, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetValue not implemented")
+func (UnimplementedNodeServer) Get(context.Context, *Request) (*Value, error) {
+	return nil, status.Error(codes.Unimplemented, "method Get not implemented")
+}
+func (UnimplementedNodeServer) Erase(context.Context, *Request) (*Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Erase not implemented")
+}
+func (UnimplementedNodeServer) Write(context.Context, *Data) (*Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Write not implemented")
 }
 func (UnimplementedNodeServer) InitiateMove(context.Context, *NodeT) (*Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method InitiateMove not implemented")
@@ -127,20 +159,56 @@ func RegisterNodeServer(s grpc.ServiceRegistrar, srv NodeServer) {
 	s.RegisterService(&Node_ServiceDesc, srv)
 }
 
-func _Node_GetValue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Node_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Request)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeServer).GetValue(ctx, in)
+		return srv.(NodeServer).Get(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Node_GetValue_FullMethodName,
+		FullMethod: Node_Get_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).GetValue(ctx, req.(*Request))
+		return srv.(NodeServer).Get(ctx, req.(*Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Node_Erase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).Erase(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Node_Erase_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).Erase(ctx, req.(*Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Node_Write_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Data)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).Write(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Node_Write_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).Write(ctx, req.(*Data))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -182,8 +250,16 @@ var Node_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*NodeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetValue",
-			Handler:    _Node_GetValue_Handler,
+			MethodName: "Get",
+			Handler:    _Node_Get_Handler,
+		},
+		{
+			MethodName: "Erase",
+			Handler:    _Node_Erase_Handler,
+		},
+		{
+			MethodName: "Write",
+			Handler:    _Node_Write_Handler,
 		},
 		{
 			MethodName: "InitiateMove",

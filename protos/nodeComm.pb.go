@@ -310,9 +310,11 @@ const file_protos_nodeComm_proto_rawDesc = "" +
 	"\x05Empty\".\n" +
 	"\x04Data\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value2\x91\x01\n" +
-	"\x04Node\x12,\n" +
-	"\bGetValue\x12\x0f.protos.Request\x1a\r.protos.Value\"\x00\x12.\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value2\xdf\x01\n" +
+	"\x04Node\x12'\n" +
+	"\x03Get\x12\x0f.protos.Request\x1a\r.protos.Value\"\x00\x12)\n" +
+	"\x05Erase\x12\x0f.protos.Request\x1a\r.protos.Empty\"\x00\x12&\n" +
+	"\x05Write\x12\f.protos.Data\x1a\r.protos.Empty\"\x00\x12.\n" +
 	"\fInitiateMove\x12\r.protos.NodeT\x1a\r.protos.Empty\"\x00\x12+\n" +
 	"\bMoveData\x12\r.protos.VNode\x1a\f.protos.Data\"\x000\x01B'Z%github.com/utterwqlnut/utterdb/protosb\x06proto3"
 
@@ -339,14 +341,18 @@ var file_protos_nodeComm_proto_goTypes = []any{
 }
 var file_protos_nodeComm_proto_depIdxs = []int32{
 	3, // 0: protos.NodeT.vnode_id:type_name -> protos.VNode
-	0, // 1: protos.Node.GetValue:input_type -> protos.Request
-	2, // 2: protos.Node.InitiateMove:input_type -> protos.NodeT
-	3, // 3: protos.Node.MoveData:input_type -> protos.VNode
-	1, // 4: protos.Node.GetValue:output_type -> protos.Value
-	4, // 5: protos.Node.InitiateMove:output_type -> protos.Empty
-	5, // 6: protos.Node.MoveData:output_type -> protos.Data
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	0, // 1: protos.Node.Get:input_type -> protos.Request
+	0, // 2: protos.Node.Erase:input_type -> protos.Request
+	5, // 3: protos.Node.Write:input_type -> protos.Data
+	2, // 4: protos.Node.InitiateMove:input_type -> protos.NodeT
+	3, // 5: protos.Node.MoveData:input_type -> protos.VNode
+	1, // 6: protos.Node.Get:output_type -> protos.Value
+	4, // 7: protos.Node.Erase:output_type -> protos.Empty
+	4, // 8: protos.Node.Write:output_type -> protos.Empty
+	4, // 9: protos.Node.InitiateMove:output_type -> protos.Empty
+	5, // 10: protos.Node.MoveData:output_type -> protos.Data
+	6, // [6:11] is the sub-list for method output_type
+	1, // [1:6] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name

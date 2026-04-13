@@ -4,7 +4,9 @@ package protos;
 option go_package = "github.com/utterwqlnut/utterdb/protos";
 
 service Node {
-  rpc GetValue(Request) returns (Value) {}
+  rpc Get(Request) returns (Value) {}
+  rpc Erase(Request) returns (Empty) {}
+  rpc Write(Data) returns (Empty) {}
   rpc InitiateMove(NodeT) returns (Empty) {}
   rpc MoveData(VNode) returns (stream Data) {}
 }
