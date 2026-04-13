@@ -21,6 +21,8 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Node_Get_FullMethodName          = "/protos.Node/Get"
 	Node_Erase_FullMethodName        = "/protos.Node/Erase"
+	Node_RamUse_FullMethodName       = "/protos.Node/RamUse"
+	Node_CpuUse_FullMethodName       = "/protos.Node/CpuUse"
 	Node_Write_FullMethodName        = "/protos.Node/Write"
 	Node_InitiateMove_FullMethodName = "/protos.Node/InitiateMove"
 	Node_MoveData_FullMethodName     = "/protos.Node/MoveData"
@@ -32,6 +34,8 @@ const (
 type NodeClient interface {
 	Get(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Value, error)
 	Erase(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Empty, error)
+	RamUse(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Float, error)
+	CpuUse(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Float, error)
 	Write(ctx context.Context, in *Data, opts ...grpc.CallOption) (*Empty, error)
 	InitiateMove(ctx context.Context, in *NodeT, opts ...grpc.CallOption) (*Empty, error)
 	MoveData(ctx context.Context, in *VNode, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Data], error)
@@ -59,6 +63,26 @@ func (c *nodeClient) Erase(ctx context.Context, in *Request, opts ...grpc.CallOp
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Empty)
 	err := c.cc.Invoke(ctx, Node_Erase_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) RamUse(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Float, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Float)
+	err := c.cc.Invoke(ctx, Node_RamUse_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) CpuUse(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Float, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Float)
+	err := c.cc.Invoke(ctx, Node_CpuUse_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +134,8 @@ type Node_MoveDataClient = grpc.ServerStreamingClient[Data]
 type NodeServer interface {
 	Get(context.Context, *Request) (*Value, error)
 	Erase(context.Context, *Request) (*Empty, error)
+	RamUse(context.Context, *Empty) (*Float, error)
+	CpuUse(context.Context, *Empty) (*Float, error)
 	Write(context.Context, *Data) (*Empty, error)
 	InitiateMove(context.Context, *NodeT) (*Empty, error)
 	MoveData(*VNode, grpc.ServerStreamingServer[Data]) error
@@ -128,6 +154,12 @@ func (UnimplementedNodeServer) Get(context.Context, *Request) (*Value, error) {
 }
 func (UnimplementedNodeServer) Erase(context.Context, *Request) (*Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method Erase not implemented")
+}
+func (UnimplementedNodeServer) RamUse(context.Context, *Empty) (*Float, error) {
+	return nil, status.Error(codes.Unimplemented, "method RamUse not implemented")
+}
+func (UnimplementedNodeServer) CpuUse(context.Context, *Empty) (*Float, error) {
+	return nil, status.Error(codes.Unimplemented, "method CpuUse not implemented")
 }
 func (UnimplementedNodeServer) Write(context.Context, *Data) (*Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method Write not implemented")
@@ -195,6 +227,42 @@ func _Node_Erase_Handler(srv interface{}, ctx context.Context, dec func(interfac
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Node_RamUse_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).RamUse(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Node_RamUse_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).RamUse(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Node_CpuUse_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).CpuUse(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Node_CpuUse_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).CpuUse(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Node_Write_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Data)
 	if err := dec(in); err != nil {
@@ -256,6 +324,14 @@ var Node_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Erase",
 			Handler:    _Node_Erase_Handler,
+		},
+		{
+			MethodName: "RamUse",
+			Handler:    _Node_RamUse_Handler,
+		},
+		{
+			MethodName: "CpuUse",
+			Handler:    _Node_CpuUse_Handler,
 		},
 		{
 			MethodName: "Write",

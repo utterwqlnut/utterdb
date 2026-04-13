@@ -6,6 +6,8 @@ option go_package = "github.com/utterwqlnut/utterdb/protos";
 service Node {
   rpc Get(Request) returns (Value) {}
   rpc Erase(Request) returns (Empty) {}
+  rpc RamUse(Empty) returns (Float) {}
+  rpc CpuUse(Empty) returns (Float) {}
   rpc Write(Data) returns (Empty) {}
   rpc InitiateMove(NodeT) returns (Empty) {}
   rpc MoveData(VNode) returns (stream Data) {}
@@ -14,7 +16,9 @@ service Node {
 message Request {
   string key = 1;
 }
-
+message Float {
+  float value = 1;
+}
 message Value {
   string value = 1;
 }

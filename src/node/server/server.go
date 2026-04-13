@@ -28,3 +28,11 @@ func (s *server) InitiateMove(*pb.NodeT) error {
 func (s *server) MoveData(*pb.VNode) (*pb.Data, error) {
 
 }
+
+func (s *server) RamUse() (*pb.Float, error) {
+
+}
+
+func (s *server) CpuUse() (*pb.Float, error) {
+
+}
