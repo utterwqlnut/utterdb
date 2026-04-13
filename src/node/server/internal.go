@@ -3,12 +3,14 @@ package server
 import (
 	"errors"
 	"sync"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 )
 
 type internalKeyValueStore struct {
-	store  map[string]any
-	ramUse float32
-	mut    sync.RWMutex
+	store map[string]any
+	mut   sync.RWMutex
 }
 
 func newInternalKeyValueStore() *internalKeyValueStore {
@@ -53,4 +55,14 @@ func (kv *internalKeyValueStore) erase(key string) error {
 	kv.mut.Unlock()
 
 	return nil
+}
+
+func (kv *internalKeyValueStore) getRamUse() float64 {
+	ramUse, _ := mem.VirtualMemory()
+	return ramUse.UsedPercent
+}
+
+func (kv *internalKeyValueStore) getCpuUse() float64 {
+	cpuUse, _ := cpu.Percent(0, false)
+	return cpuUse[0]
 }

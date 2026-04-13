@@ -8,6 +8,7 @@ require (
 )
 
 require (
+	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
