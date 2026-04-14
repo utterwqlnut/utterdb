@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -35,7 +36,7 @@ func (kv *internalKeyValueStore) get(key Stringable) (Stringable, error) {
 
 func (kv *internalKeyValueStore) write(key Stringable, value Stringable) {
 	kv.mut.Lock()
-
+	fmt.Println(key)
 	kv.store[key] = value
 
 	kv.mut.Unlock()

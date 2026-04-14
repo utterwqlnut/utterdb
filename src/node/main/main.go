@@ -2,10 +2,14 @@ package main
 
 import (
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"strconv"
 
+	pb "github.com/utterwqlnut/utterdb/protos"
+	"github.com/utterwqlnut/utterdb/src/node/server"
+	"google.golang.org/grpc"
 	"gopkg.in/yaml.v3"
 )
 
@@ -16,7 +20,8 @@ type Config struct {
 }
 
 func main() {
-	data, err := os.ReadFile("../config.yaml")
+	// Carrying out config
+	data, err := os.ReadFile("config.yaml")
 
 	if err != nil {
 		log.Fatalf("Failed to find file")
@@ -30,4 +35,18 @@ func main() {
 	}
 
 	exec.Command("sysctl", "vm.swappiness="+strconv.Itoa(config.Memory.Swappiness)).Run()
+
+	// Starting Server
+	lis, err := net.Listen("tcp", ":9001")
+	if err != nil {
+		log.Fatalf("Failed to start tcp server")
+	}
+
+	grpcServer := grpc.NewServer()
+	keyValueServer := server.NewNodeServer()
+	pb.RegisterNodeServer(grpcServer, keyValueServer)
+
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatalf("Failed to start grpc server")
+	}
 }

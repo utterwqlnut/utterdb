@@ -34,7 +34,6 @@ func (x Float) Stringify() string {
 }
 
 func ParseToStringable(s string, sType string) (Stringable, error) {
-
 	switch sType {
 
 	case "int":
@@ -42,17 +41,17 @@ func ParseToStringable(s string, sType string) (Stringable, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse int: %w", err)
 		}
-		return &Int{val: val}, nil
+		return Int{val: val}, nil
 
 	case "float":
 		val, err := strconv.ParseFloat(s, 64)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse float: %w", err)
 		}
-		return &Float{val: val}, nil
+		return Float{val: val}, nil
 
 	case "string":
-		return &String{val: s}, nil
+		return String{val: s}, nil
 
 	default:
 		return nil, fmt.Errorf("invalid type: %s", sType)
