@@ -57,12 +57,12 @@ func (kv *internalKeyValueStore) erase(key Stringable) error {
 	return nil
 }
 
-func (kv *internalKeyValueStore) getRamUse() float64 {
+func (kv *internalKeyValueStore) getRamUse() float32 {
 	ramUse, _ := mem.VirtualMemory()
-	return ramUse.UsedPercent
+	return float32(ramUse.UsedPercent)
 }
 
-func (kv *internalKeyValueStore) getCpuUse() float64 {
+func (kv *internalKeyValueStore) getCpuUse() float32 {
 	cpuUse, _ := cpu.Percent(0, false)
-	return cpuUse[0]
+	return float32(cpuUse[0])
 }

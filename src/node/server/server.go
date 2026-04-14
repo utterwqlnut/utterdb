@@ -59,17 +59,17 @@ func (s *server) Erase(rq *pb.Request) error {
 }
 
 func (s *server) InitiateMove(nodeT *pb.NodeT) error {
-
+	return nil
 }
 
 func (s *server) MoveData(vnode *pb.VNode) (*pb.Data, error) {
-
+	return nil, nil
 }
 
 func (s *server) RamUse() (*pb.Float, error) {
-
+	return &pb.Float{Value: s.kv.getRamUse()}, nil
 }
 
 func (s *server) CpuUse() (*pb.Float, error) {
-
+	return &pb.Float{Value: s.kv.getCpuUse()}, nil
 }
