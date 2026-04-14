@@ -24,6 +24,7 @@ const (
 type Request struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -61,6 +62,13 @@ func (*Request) Descriptor() ([]byte, []int) {
 func (x *Request) GetKey() string {
 	if x != nil {
 		return x.Key
+	}
+	return ""
+}
+
+func (x *Request) GetType() string {
+	if x != nil {
+		return x.Type
 	}
 	return ""
 }
@@ -289,6 +297,8 @@ type Data struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	KeyType       string                 `protobuf:"bytes,3,opt,name=keyType,proto3" json:"keyType,omitempty"`
+	ValueType     string                 `protobuf:"bytes,4,opt,name=valueType,proto3" json:"valueType,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -337,13 +347,28 @@ func (x *Data) GetValue() string {
 	return ""
 }
 
+func (x *Data) GetKeyType() string {
+	if x != nil {
+		return x.KeyType
+	}
+	return ""
+}
+
+func (x *Data) GetValueType() string {
+	if x != nil {
+		return x.ValueType
+	}
+	return ""
+}
+
 var File_protos_nodeComm_proto protoreflect.FileDescriptor
 
 const file_protos_nodeComm_proto_rawDesc = "" +
 	"\n" +
-	"\x15protos/nodeComm.proto\x12\x06protos\"\x1b\n" +
+	"\x15protos/nodeComm.proto\x12\x06protos\"/\n" +
 	"\aRequest\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\"\x1d\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\"\x1d\n" +
 	"\x05Float\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\x02R\x05value\"\x1d\n" +
 	"\x05Value\x12\x14\n" +
@@ -353,10 +378,12 @@ const file_protos_nodeComm_proto_rawDesc = "" +
 	"\bvnode_id\x18\x02 \x01(\v2\r.protos.VNodeR\avnodeId\"\x17\n" +
 	"\x05VNode\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\a\n" +
-	"\x05Empty\".\n" +
+	"\x05Empty\"f\n" +
 	"\x04Data\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value2\xb3\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\x12\x18\n" +
+	"\akeyType\x18\x03 \x01(\tR\akeyType\x12\x1c\n" +
+	"\tvalueType\x18\x04 \x01(\tR\tvalueType2\xb3\x02\n" +
 	"\x04Node\x12'\n" +
 	"\x03Get\x12\x0f.protos.Request\x1a\r.protos.Value\"\x00\x12)\n" +
 	"\x05Erase\x12\x0f.protos.Request\x1a\r.protos.Empty\"\x00\x12(\n" +

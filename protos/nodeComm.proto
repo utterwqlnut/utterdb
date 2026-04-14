@@ -15,6 +15,7 @@ service Node {
 
 message Request {
   string key = 1;
+  string type = 2;
 }
 message Float {
   float value = 1;
@@ -37,4 +38,6 @@ message Empty {}
 message Data {
   string key = 1;
   string value = 2;
+  string keyType = 3;
+  string valueType = 4;
 }

@@ -9,17 +9,17 @@ import (
 )
 
 type internalKeyValueStore struct {
-	store map[string]any
+	store map[Stringable]Stringable
 	mut   sync.RWMutex
 }
 
 func newInternalKeyValueStore() *internalKeyValueStore {
 	return &internalKeyValueStore{
-		store: make(map[string]any),
+		store: make(map[Stringable]Stringable),
 	}
 }
 
-func (kv *internalKeyValueStore) get(key string) (any, error) {
+func (kv *internalKeyValueStore) get(key Stringable) (Stringable, error) {
 	kv.mut.RLock()
 
 	value, ok := kv.store[key]
@@ -33,7 +33,7 @@ func (kv *internalKeyValueStore) get(key string) (any, error) {
 	return value, nil
 }
 
-func (kv *internalKeyValueStore) write(key string, value any) {
+func (kv *internalKeyValueStore) write(key Stringable, value Stringable) {
 	kv.mut.Lock()
 
 	kv.store[key] = value
@@ -41,7 +41,7 @@ func (kv *internalKeyValueStore) write(key string, value any) {
 	kv.mut.Unlock()
 }
 
-func (kv *internalKeyValueStore) erase(key string) error {
+func (kv *internalKeyValueStore) erase(key Stringable) error {
 	kv.mut.Lock()
 
 	_, ok := kv.store[key]
