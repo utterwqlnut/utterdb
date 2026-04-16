@@ -9,8 +9,8 @@ service Node {
   rpc RamUse(Empty) returns (Float) {}
   rpc CpuUse(Empty) returns (Float) {}
   rpc Write(Data) returns (Empty) {}
-  rpc InitiateMove(NodeT) returns (Empty) {}
-  rpc MoveData(VNode) returns (stream Data) {}
+  rpc InitiateMove(Rebalance) returns (Empty) {}
+  rpc MoveData(DataStreamReq) returns (stream Data) {}
 }
 
 message Request {
@@ -24,15 +24,6 @@ message Value {
   string value = 1;
 }
 
-message NodeT {
-  string node_id = 1;
-  VNode vnode_id = 2;
-}
-
-message VNode {
-  string id = 1;
-}
-
 message Empty {}
 
 message Data {
@@ -40,4 +31,15 @@ message Data {
   string value = 2;
   string keyType = 3;
   string valueType = 4;
+}
+
+message Rebalance {
+  string ip = 1;
+  uint64 start = 2;
+  uint64 end = 3;
+}
+
+message DataStreamReq {
+  uint64 start = 1;
+  uint64 end = 2;
 }

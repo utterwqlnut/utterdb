@@ -161,102 +161,6 @@ func (x *Value) GetValue() string {
 	return ""
 }
 
-type NodeT struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	VnodeId       *VNode                 `protobuf:"bytes,2,opt,name=vnode_id,json=vnodeId,proto3" json:"vnode_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *NodeT) Reset() {
-	*x = NodeT{}
-	mi := &file_protos_nodeComm_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *NodeT) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NodeT) ProtoMessage() {}
-
-func (x *NodeT) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_nodeComm_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NodeT.ProtoReflect.Descriptor instead.
-func (*NodeT) Descriptor() ([]byte, []int) {
-	return file_protos_nodeComm_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *NodeT) GetNodeId() string {
-	if x != nil {
-		return x.NodeId
-	}
-	return ""
-}
-
-func (x *NodeT) GetVnodeId() *VNode {
-	if x != nil {
-		return x.VnodeId
-	}
-	return nil
-}
-
-type VNode struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *VNode) Reset() {
-	*x = VNode{}
-	mi := &file_protos_nodeComm_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *VNode) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*VNode) ProtoMessage() {}
-
-func (x *VNode) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_nodeComm_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use VNode.ProtoReflect.Descriptor instead.
-func (*VNode) Descriptor() ([]byte, []int) {
-	return file_protos_nodeComm_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *VNode) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
 type Empty struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -265,7 +169,7 @@ type Empty struct {
 
 func (x *Empty) Reset() {
 	*x = Empty{}
-	mi := &file_protos_nodeComm_proto_msgTypes[5]
+	mi := &file_protos_nodeComm_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -277,7 +181,7 @@ func (x *Empty) String() string {
 func (*Empty) ProtoMessage() {}
 
 func (x *Empty) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_nodeComm_proto_msgTypes[5]
+	mi := &file_protos_nodeComm_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -290,7 +194,7 @@ func (x *Empty) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Empty.ProtoReflect.Descriptor instead.
 func (*Empty) Descriptor() ([]byte, []int) {
-	return file_protos_nodeComm_proto_rawDescGZIP(), []int{5}
+	return file_protos_nodeComm_proto_rawDescGZIP(), []int{3}
 }
 
 type Data struct {
@@ -305,7 +209,7 @@ type Data struct {
 
 func (x *Data) Reset() {
 	*x = Data{}
-	mi := &file_protos_nodeComm_proto_msgTypes[6]
+	mi := &file_protos_nodeComm_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -317,7 +221,7 @@ func (x *Data) String() string {
 func (*Data) ProtoMessage() {}
 
 func (x *Data) ProtoReflect() protoreflect.Message {
-	mi := &file_protos_nodeComm_proto_msgTypes[6]
+	mi := &file_protos_nodeComm_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -330,7 +234,7 @@ func (x *Data) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data.ProtoReflect.Descriptor instead.
 func (*Data) Descriptor() ([]byte, []int) {
-	return file_protos_nodeComm_proto_rawDescGZIP(), []int{6}
+	return file_protos_nodeComm_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Data) GetKey() string {
@@ -361,6 +265,118 @@ func (x *Data) GetValueType() string {
 	return ""
 }
 
+type Rebalance struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ip            string                 `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
+	Start         uint64                 `protobuf:"varint,2,opt,name=start,proto3" json:"start,omitempty"`
+	End           uint64                 `protobuf:"varint,3,opt,name=end,proto3" json:"end,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Rebalance) Reset() {
+	*x = Rebalance{}
+	mi := &file_protos_nodeComm_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Rebalance) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Rebalance) ProtoMessage() {}
+
+func (x *Rebalance) ProtoReflect() protoreflect.Message {
+	mi := &file_protos_nodeComm_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Rebalance.ProtoReflect.Descriptor instead.
+func (*Rebalance) Descriptor() ([]byte, []int) {
+	return file_protos_nodeComm_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Rebalance) GetIp() string {
+	if x != nil {
+		return x.Ip
+	}
+	return ""
+}
+
+func (x *Rebalance) GetStart() uint64 {
+	if x != nil {
+		return x.Start
+	}
+	return 0
+}
+
+func (x *Rebalance) GetEnd() uint64 {
+	if x != nil {
+		return x.End
+	}
+	return 0
+}
+
+type DataStreamReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Start         uint64                 `protobuf:"varint,1,opt,name=start,proto3" json:"start,omitempty"`
+	End           uint64                 `protobuf:"varint,2,opt,name=end,proto3" json:"end,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DataStreamReq) Reset() {
+	*x = DataStreamReq{}
+	mi := &file_protos_nodeComm_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DataStreamReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DataStreamReq) ProtoMessage() {}
+
+func (x *DataStreamReq) ProtoReflect() protoreflect.Message {
+	mi := &file_protos_nodeComm_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DataStreamReq.ProtoReflect.Descriptor instead.
+func (*DataStreamReq) Descriptor() ([]byte, []int) {
+	return file_protos_nodeComm_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *DataStreamReq) GetStart() uint64 {
+	if x != nil {
+		return x.Start
+	}
+	return 0
+}
+
+func (x *DataStreamReq) GetEnd() uint64 {
+	if x != nil {
+		return x.End
+	}
+	return 0
+}
+
 var File_protos_nodeComm_proto protoreflect.FileDescriptor
 
 const file_protos_nodeComm_proto_rawDesc = "" +
@@ -372,26 +388,28 @@ const file_protos_nodeComm_proto_rawDesc = "" +
 	"\x05Float\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\x02R\x05value\"\x1d\n" +
 	"\x05Value\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\tR\x05value\"J\n" +
-	"\x05NodeT\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12(\n" +
-	"\bvnode_id\x18\x02 \x01(\v2\r.protos.VNodeR\avnodeId\"\x17\n" +
-	"\x05VNode\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\a\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\"\a\n" +
 	"\x05Empty\"f\n" +
 	"\x04Data\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x12\x18\n" +
 	"\akeyType\x18\x03 \x01(\tR\akeyType\x12\x1c\n" +
-	"\tvalueType\x18\x04 \x01(\tR\tvalueType2\xb3\x02\n" +
+	"\tvalueType\x18\x04 \x01(\tR\tvalueType\"C\n" +
+	"\tRebalance\x12\x0e\n" +
+	"\x02ip\x18\x01 \x01(\tR\x02ip\x12\x14\n" +
+	"\x05start\x18\x02 \x01(\x04R\x05start\x12\x10\n" +
+	"\x03end\x18\x03 \x01(\x04R\x03end\"7\n" +
+	"\rDataStreamReq\x12\x14\n" +
+	"\x05start\x18\x01 \x01(\x04R\x05start\x12\x10\n" +
+	"\x03end\x18\x02 \x01(\x04R\x03end2\xbf\x02\n" +
 	"\x04Node\x12'\n" +
 	"\x03Get\x12\x0f.protos.Request\x1a\r.protos.Value\"\x00\x12)\n" +
 	"\x05Erase\x12\x0f.protos.Request\x1a\r.protos.Empty\"\x00\x12(\n" +
 	"\x06RamUse\x12\r.protos.Empty\x1a\r.protos.Float\"\x00\x12(\n" +
 	"\x06CpuUse\x12\r.protos.Empty\x1a\r.protos.Float\"\x00\x12&\n" +
-	"\x05Write\x12\f.protos.Data\x1a\r.protos.Empty\"\x00\x12.\n" +
-	"\fInitiateMove\x12\r.protos.NodeT\x1a\r.protos.Empty\"\x00\x12+\n" +
-	"\bMoveData\x12\r.protos.VNode\x1a\f.protos.Data\"\x000\x01B'Z%github.com/utterwqlnut/utterdb/protosb\x06proto3"
+	"\x05Write\x12\f.protos.Data\x1a\r.protos.Empty\"\x00\x122\n" +
+	"\fInitiateMove\x12\x11.protos.Rebalance\x1a\r.protos.Empty\"\x00\x123\n" +
+	"\bMoveData\x12\x15.protos.DataStreamReq\x1a\f.protos.Data\"\x000\x01B'Z%github.com/utterwqlnut/utterdb/protosb\x06proto3"
 
 var (
 	file_protos_nodeComm_proto_rawDescOnce sync.Once
@@ -407,35 +425,34 @@ func file_protos_nodeComm_proto_rawDescGZIP() []byte {
 
 var file_protos_nodeComm_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_protos_nodeComm_proto_goTypes = []any{
-	(*Request)(nil), // 0: protos.Request
-	(*Float)(nil),   // 1: protos.Float
-	(*Value)(nil),   // 2: protos.Value
-	(*NodeT)(nil),   // 3: protos.NodeT
-	(*VNode)(nil),   // 4: protos.VNode
-	(*Empty)(nil),   // 5: protos.Empty
-	(*Data)(nil),    // 6: protos.Data
+	(*Request)(nil),       // 0: protos.Request
+	(*Float)(nil),         // 1: protos.Float
+	(*Value)(nil),         // 2: protos.Value
+	(*Empty)(nil),         // 3: protos.Empty
+	(*Data)(nil),          // 4: protos.Data
+	(*Rebalance)(nil),     // 5: protos.Rebalance
+	(*DataStreamReq)(nil), // 6: protos.DataStreamReq
 }
 var file_protos_nodeComm_proto_depIdxs = []int32{
-	4, // 0: protos.NodeT.vnode_id:type_name -> protos.VNode
-	0, // 1: protos.Node.Get:input_type -> protos.Request
-	0, // 2: protos.Node.Erase:input_type -> protos.Request
-	5, // 3: protos.Node.RamUse:input_type -> protos.Empty
-	5, // 4: protos.Node.CpuUse:input_type -> protos.Empty
-	6, // 5: protos.Node.Write:input_type -> protos.Data
-	3, // 6: protos.Node.InitiateMove:input_type -> protos.NodeT
-	4, // 7: protos.Node.MoveData:input_type -> protos.VNode
-	2, // 8: protos.Node.Get:output_type -> protos.Value
-	5, // 9: protos.Node.Erase:output_type -> protos.Empty
-	1, // 10: protos.Node.RamUse:output_type -> protos.Float
-	1, // 11: protos.Node.CpuUse:output_type -> protos.Float
-	5, // 12: protos.Node.Write:output_type -> protos.Empty
-	5, // 13: protos.Node.InitiateMove:output_type -> protos.Empty
-	6, // 14: protos.Node.MoveData:output_type -> protos.Data
-	8, // [8:15] is the sub-list for method output_type
-	1, // [1:8] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0, // 0: protos.Node.Get:input_type -> protos.Request
+	0, // 1: protos.Node.Erase:input_type -> protos.Request
+	3, // 2: protos.Node.RamUse:input_type -> protos.Empty
+	3, // 3: protos.Node.CpuUse:input_type -> protos.Empty
+	4, // 4: protos.Node.Write:input_type -> protos.Data
+	5, // 5: protos.Node.InitiateMove:input_type -> protos.Rebalance
+	6, // 6: protos.Node.MoveData:input_type -> protos.DataStreamReq
+	2, // 7: protos.Node.Get:output_type -> protos.Value
+	3, // 8: protos.Node.Erase:output_type -> protos.Empty
+	1, // 9: protos.Node.RamUse:output_type -> protos.Float
+	1, // 10: protos.Node.CpuUse:output_type -> protos.Float
+	3, // 11: protos.Node.Write:output_type -> protos.Empty
+	3, // 12: protos.Node.InitiateMove:output_type -> protos.Empty
+	4, // 13: protos.Node.MoveData:output_type -> protos.Data
+	7, // [7:14] is the sub-list for method output_type
+	0, // [0:7] is the sub-list for method input_type
+	0, // [0:0] is the sub-list for extension type_name
+	0, // [0:0] is the sub-list for extension extendee
+	0, // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_protos_nodeComm_proto_init() }

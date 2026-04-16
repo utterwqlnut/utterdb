@@ -37,8 +37,8 @@ type NodeClient interface {
 	RamUse(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Float, error)
 	CpuUse(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Float, error)
 	Write(ctx context.Context, in *Data, opts ...grpc.CallOption) (*Empty, error)
-	InitiateMove(ctx context.Context, in *NodeT, opts ...grpc.CallOption) (*Empty, error)
-	MoveData(ctx context.Context, in *VNode, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Data], error)
+	InitiateMove(ctx context.Context, in *Rebalance, opts ...grpc.CallOption) (*Empty, error)
+	MoveData(ctx context.Context, in *DataStreamReq, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Data], error)
 }
 
 type nodeClient struct {
@@ -99,7 +99,7 @@ func (c *nodeClient) Write(ctx context.Context, in *Data, opts ...grpc.CallOptio
 	return out, nil
 }
 
-func (c *nodeClient) InitiateMove(ctx context.Context, in *NodeT, opts ...grpc.CallOption) (*Empty, error) {
+func (c *nodeClient) InitiateMove(ctx context.Context, in *Rebalance, opts ...grpc.CallOption) (*Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Empty)
 	err := c.cc.Invoke(ctx, Node_InitiateMove_FullMethodName, in, out, cOpts...)
@@ -109,13 +109,13 @@ func (c *nodeClient) InitiateMove(ctx context.Context, in *NodeT, opts ...grpc.C
 	return out, nil
 }
 
-func (c *nodeClient) MoveData(ctx context.Context, in *VNode, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Data], error) {
+func (c *nodeClient) MoveData(ctx context.Context, in *DataStreamReq, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Data], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Node_ServiceDesc.Streams[0], Node_MoveData_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[VNode, Data]{ClientStream: stream}
+	x := &grpc.GenericClientStream[DataStreamReq, Data]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -137,8 +137,8 @@ type NodeServer interface {
 	RamUse(context.Context, *Empty) (*Float, error)
 	CpuUse(context.Context, *Empty) (*Float, error)
 	Write(context.Context, *Data) (*Empty, error)
-	InitiateMove(context.Context, *NodeT) (*Empty, error)
-	MoveData(*VNode, grpc.ServerStreamingServer[Data]) error
+	InitiateMove(context.Context, *Rebalance) (*Empty, error)
+	MoveData(*DataStreamReq, grpc.ServerStreamingServer[Data]) error
 	mustEmbedUnimplementedNodeServer()
 }
 
@@ -164,10 +164,10 @@ func (UnimplementedNodeServer) CpuUse(context.Context, *Empty) (*Float, error) {
 func (UnimplementedNodeServer) Write(context.Context, *Data) (*Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method Write not implemented")
 }
-func (UnimplementedNodeServer) InitiateMove(context.Context, *NodeT) (*Empty, error) {
+func (UnimplementedNodeServer) InitiateMove(context.Context, *Rebalance) (*Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method InitiateMove not implemented")
 }
-func (UnimplementedNodeServer) MoveData(*VNode, grpc.ServerStreamingServer[Data]) error {
+func (UnimplementedNodeServer) MoveData(*DataStreamReq, grpc.ServerStreamingServer[Data]) error {
 	return status.Error(codes.Unimplemented, "method MoveData not implemented")
 }
 func (UnimplementedNodeServer) mustEmbedUnimplementedNodeServer() {}
@@ -282,7 +282,7 @@ func _Node_Write_Handler(srv interface{}, ctx context.Context, dec func(interfac
 }
 
 func _Node_InitiateMove_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(NodeT)
+	in := new(Rebalance)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -294,17 +294,17 @@ func _Node_InitiateMove_Handler(srv interface{}, ctx context.Context, dec func(i
 		FullMethod: Node_InitiateMove_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).InitiateMove(ctx, req.(*NodeT))
+		return srv.(NodeServer).InitiateMove(ctx, req.(*Rebalance))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Node_MoveData_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(VNode)
+	m := new(DataStreamReq)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(NodeServer).MoveData(m, &grpc.GenericServerStream[VNode, Data]{ServerStream: stream})
+	return srv.(NodeServer).MoveData(m, &grpc.GenericServerStream[DataStreamReq, Data]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.

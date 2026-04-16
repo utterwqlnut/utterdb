@@ -3,8 +3,11 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
 
 	pb "github.com/utterwqlnut/utterdb/protos"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Server struct {
@@ -66,6 +69,49 @@ func (s *Server) Erase(ctx context.Context, rq *pb.Request) (*pb.Empty, error) {
 
 	return &pb.Empty{}, err2
 
+}
+func (s *Server) MoveData(dataReq *pb.DataStreamReq, stream grpc.ServerStreamingServer[pb.Data]) error {
+	start := req.StartHash
+	end := req.EndHash
+}
+func (s *Server) InitiateMove(ctx context.Context, reb *pb.Rebalance) (*pb.Empty, error) {
+	conn, err := grpc.Dial(
+		reb.Ip,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return &pb.Empty{}, err
+	}
+	defer conn.Close()
+	client := pb.NewNodeClient(conn)
+	dataStreamReq := &pb.DataStreamReq{
+		Start: reb.Start,
+		End:   reb.End,
+	}
+	stream, _ := client.MoveData(ctx, dataStreamReq)
+	for {
+		res, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return &pb.Empty{}, err
+		}
+		key, keyErr := ParseToStringable(res.Key, res.KeyType)
+		value, valErr := ParseToStringable(res.Value, res.ValueType)
+
+		if keyErr != nil {
+			return &pb.Empty{}, keyErr
+		}
+
+		if valErr != nil {
+			return &pb.Empty{}, valErr
+		}
+
+		s.kv.write(key, value)
+	}
+
+	return &pb.Empty{}, nil
 }
 
 func (s *Server) RamUse(ctx context.Context, _ *pb.Empty) (*pb.Float, error) {
