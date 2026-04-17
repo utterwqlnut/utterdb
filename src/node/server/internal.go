@@ -3,14 +3,12 @@ package server
 import (
 	"errors"
 	"fmt"
-	"hash/maphash"
 	"sync"
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/spaolacci/murmur3"
 )
-
-var seed = maphash.MakeSeed()
 
 type internalKeyValueStore struct {
 	store []map[Stringable]Stringable
@@ -25,14 +23,30 @@ func newInternalKeyValueStore(shards int) *internalKeyValueStore {
 }
 
 func hash(key Stringable) uint64 {
-	var h maphash.Hash
-	h.SetSeed(seed)
-	h.WriteString(key.Stringify())
-	return h.Sum64()
+	return murmur3.Sum64([]byte(key.Stringify()))
 }
 
 func (kv *internalKeyValueStore) getShard(key Stringable) int {
 	return int(hash(key)) % len(kv.store)
+}
+
+func (kv *internalKeyValueStore) getSnapShot(shardId int, startHash uint64, endHash uint64) map[Stringable]Stringable {
+	kv.mut[shardId].RLock()
+
+	snapshot := make(map[Stringable]Stringable)
+
+	for key, value := range kv.store[shardId] {
+		hashNum := hash(key)
+		if startHash < endHash && hashNum > startHash && hashNum < endHash {
+			snapshot[key] = value
+		} else if endHash < startHash && (hashNum > startHash || hashNum < endHash) {
+			snapshot[key] = value
+		}
+	}
+
+	kv.mut[shardId].RUnlock()
+
+	return snapshot
 }
 
 func (kv *internalKeyValueStore) get(key Stringable) (Stringable, error) {
@@ -63,7 +77,7 @@ func (kv *internalKeyValueStore) erase(key Stringable) error {
 
 	kv.mut[shardId].Lock()
 
-	_, ok := kv.store[key]
+	_, ok := kv.store[shardId][key]
 
 	if ok != true {
 		kv.mut[shardId].Unlock()
