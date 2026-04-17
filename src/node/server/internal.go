@@ -3,29 +3,44 @@ package server
 import (
 	"errors"
 	"fmt"
+	"hash/maphash"
 	"sync"
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
+var seed = maphash.MakeSeed()
+
 type internalKeyValueStore struct {
-	store map[Stringable]Stringable
-	mut   sync.RWMutex
+	store []map[Stringable]Stringable
+	mut   []sync.RWMutex
 }
 
-func newInternalKeyValueStore() *internalKeyValueStore {
+func newInternalKeyValueStore(shards int) *internalKeyValueStore {
 	return &internalKeyValueStore{
-		store: make(map[Stringable]Stringable),
+		store: make([]map[Stringable]Stringable, shards),
+		mut:   make([]sync.RWMutex, shards),
 	}
 }
 
+func hash(key Stringable) uint64 {
+	var h maphash.Hash
+	h.SetSeed(seed)
+	h.WriteString(key.Stringify())
+	return h.Sum64()
+}
+
+func (kv *internalKeyValueStore) getShard(key Stringable) int {
+	return int(hash(key)) % len(kv.store)
+}
+
 func (kv *internalKeyValueStore) get(key Stringable) (Stringable, error) {
-	kv.mut.RLock()
+	shardId := kv.getShard(key)
+	kv.mut[shardId].RLock()
+	value, ok := kv.store[shardId][key]
 
-	value, ok := kv.store[key]
-
-	kv.mut.RUnlock()
+	kv.mut[shardId].RUnlock()
 
 	if ok != true {
 		return nil, errors.New("Key not in the store")
@@ -35,25 +50,28 @@ func (kv *internalKeyValueStore) get(key Stringable) (Stringable, error) {
 }
 
 func (kv *internalKeyValueStore) write(key Stringable, value Stringable) {
-	kv.mut.Lock()
+	shardId := kv.getShard(key)
+	kv.mut[shardId].Lock()
 	fmt.Println(key)
-	kv.store[key] = value
+	kv.store[shardId][key] = value
 
-	kv.mut.Unlock()
+	kv.mut[shardId].Unlock()
 }
 
 func (kv *internalKeyValueStore) erase(key Stringable) error {
-	kv.mut.Lock()
+	shardId := kv.getShard(key)
+
+	kv.mut[shardId].Lock()
 
 	_, ok := kv.store[key]
 
 	if ok != true {
-		kv.mut.Unlock()
+		kv.mut[shardId].Unlock()
 		return errors.New("Key not in the store")
 	}
 
-	delete(kv.store, key)
-	kv.mut.Unlock()
+	delete(kv.store[shardId], key)
+	kv.mut[shardId].Unlock()
 
 	return nil
 }

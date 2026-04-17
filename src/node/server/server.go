@@ -71,8 +71,9 @@ func (s *Server) Erase(ctx context.Context, rq *pb.Request) (*pb.Empty, error) {
 
 }
 func (s *Server) MoveData(dataReq *pb.DataStreamReq, stream grpc.ServerStreamingServer[pb.Data]) error {
-	start := req.StartHash
-	end := req.EndHash
+	start := dataReq.Start
+	end := dataReq.End
+
 }
 func (s *Server) InitiateMove(ctx context.Context, reb *pb.Rebalance) (*pb.Empty, error) {
 	conn, err := grpc.Dial(
