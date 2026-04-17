@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	pb "github.com/utterwqlnut/utterdb/protos"
@@ -49,7 +48,6 @@ func (s *Server) Get(ctx context.Context, rq *pb.Request) (*pb.Value, error) {
 func (s *Server) Write(ctx context.Context, data *pb.Data) (*pb.Empty, error) {
 	key, keyErr := ParseToStringable(data.Key, data.KeyType)
 	value, valErr := ParseToStringable(data.Value, data.ValueType)
-	fmt.Printf("%T\n", key)
 
 	if keyErr != nil {
 		return &pb.Empty{}, keyErr

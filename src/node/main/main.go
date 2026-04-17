@@ -43,7 +43,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	keyValueServer := server.NewNodeServer()
+	keyValueServer := server.NewNodeServer(2)
 	pb.RegisterNodeServer(grpcServer, keyValueServer)
 
 	if err := grpcServer.Serve(lis); err != nil {

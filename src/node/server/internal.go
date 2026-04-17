@@ -17,8 +17,12 @@ type internalKeyValueStore struct {
 }
 
 func newInternalKeyValueStore(shards int) *internalKeyValueStore {
+	store := make([]map[Stringable]Stringable, shards)
+	for i := range store {
+		store[i] = make(map[Stringable]Stringable)
+	}
 	return &internalKeyValueStore{
-		store:  make([]map[Stringable]Stringable, shards),
+		store:  store,
 		mut:    make([]sync.RWMutex, shards),
 		shards: shards,
 	}
@@ -29,7 +33,7 @@ func hash(key Stringable) uint64 {
 }
 
 func (kv *internalKeyValueStore) getShard(key Stringable) int {
-	return int(hash(key)) % len(kv.store)
+	return int(hash(key) % uint64(len(kv.store)))
 }
 
 func (kv *internalKeyValueStore) clearLog() {
