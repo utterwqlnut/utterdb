@@ -42,4 +42,5 @@ message Rebalance {
 message DataStreamReq {
   uint64 start = 1;
   uint64 end = 2;
+  string sourceIp = 3;
 }

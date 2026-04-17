@@ -5,6 +5,12 @@ import (
 	"strconv"
 )
 
+type Function struct {
+	methodName string
+	key        Stringable
+	value      Stringable
+}
+
 type Stringable interface {
 	Stringify() string
 }

@@ -329,6 +329,7 @@ type DataStreamReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Start         uint64                 `protobuf:"varint,1,opt,name=start,proto3" json:"start,omitempty"`
 	End           uint64                 `protobuf:"varint,2,opt,name=end,proto3" json:"end,omitempty"`
+	SourceIp      string                 `protobuf:"bytes,3,opt,name=sourceIp,proto3" json:"sourceIp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -377,6 +378,13 @@ func (x *DataStreamReq) GetEnd() uint64 {
 	return 0
 }
 
+func (x *DataStreamReq) GetSourceIp() string {
+	if x != nil {
+		return x.SourceIp
+	}
+	return ""
+}
+
 var File_protos_nodeComm_proto protoreflect.FileDescriptor
 
 const file_protos_nodeComm_proto_rawDesc = "" +
@@ -398,10 +406,11 @@ const file_protos_nodeComm_proto_rawDesc = "" +
 	"\tRebalance\x12\x0e\n" +
 	"\x02ip\x18\x01 \x01(\tR\x02ip\x12\x14\n" +
 	"\x05start\x18\x02 \x01(\x04R\x05start\x12\x10\n" +
-	"\x03end\x18\x03 \x01(\x04R\x03end\"7\n" +
+	"\x03end\x18\x03 \x01(\x04R\x03end\"S\n" +
 	"\rDataStreamReq\x12\x14\n" +
 	"\x05start\x18\x01 \x01(\x04R\x05start\x12\x10\n" +
-	"\x03end\x18\x02 \x01(\x04R\x03end2\xbf\x02\n" +
+	"\x03end\x18\x02 \x01(\x04R\x03end\x12\x1a\n" +
+	"\bsourceIp\x18\x03 \x01(\tR\bsourceIp2\xbf\x02\n" +
 	"\x04Node\x12'\n" +
 	"\x03Get\x12\x0f.protos.Request\x1a\r.protos.Value\"\x00\x12)\n" +
 	"\x05Erase\x12\x0f.protos.Request\x1a\r.protos.Empty\"\x00\x12(\n" +
