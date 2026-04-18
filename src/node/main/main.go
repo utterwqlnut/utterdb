@@ -37,13 +37,14 @@ func main() {
 	exec.Command("sysctl", "vm.swappiness="+strconv.Itoa(config.Memory.Swappiness)).Run()
 
 	// Starting Server
-	lis, err := net.Listen("tcp", ":9001")
+	args := os.Args
+	lis, err := net.Listen("tcp", args[1])
 	if err != nil {
 		log.Fatalf("Failed to start tcp server")
 	}
 
 	grpcServer := grpc.NewServer()
-	keyValueServer := server.NewNodeServer(2)
+	keyValueServer := server.NewNodeServer(2, "localhost"+args[1])
 	pb.RegisterNodeServer(grpcServer, keyValueServer)
 
 	if err := grpcServer.Serve(lis); err != nil {

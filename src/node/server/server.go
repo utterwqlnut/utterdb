@@ -16,12 +16,14 @@ type Server struct {
 	migrateStart uint64
 	migrateEnd   uint64
 	migrateShard int
+	ip           string
 }
 
-func NewNodeServer(shards int) *Server {
+func NewNodeServer(shards int, ip string) *Server {
 	return &Server{
 		kv:        newInternalKeyValueStore(shards),
 		migrating: false,
+		ip:        ip,
 	}
 }
 
@@ -158,8 +160,9 @@ func (s *Server) InitiateMove(ctx context.Context, reb *pb.Rebalance) (*pb.Empty
 	defer conn.Close()
 	client := pb.NewNodeClient(conn)
 	dataStreamReq := &pb.DataStreamReq{
-		Start: reb.Start,
-		End:   reb.End,
+		Start:    reb.Start,
+		End:      reb.End,
+		SourceIp: s.ip,
 	}
 	stream, err := client.MoveData(ctx, dataStreamReq)
 
@@ -169,12 +172,15 @@ func (s *Server) InitiateMove(ctx context.Context, reb *pb.Rebalance) (*pb.Empty
 
 	for {
 		res, err := stream.Recv()
+
 		if err == io.EOF {
 			break
 		}
+
 		if err != nil {
 			return &pb.Empty{}, err
 		}
+
 		key, keyErr := ParseToStringable(res.Key, res.KeyType)
 		value, valErr := ParseToStringable(res.Value, res.ValueType)
 
