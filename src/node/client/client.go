@@ -78,4 +78,6 @@ func main() {
 		}
 		fmt.Println("Node2", value)
 	}
+	ramUse, _ := client1.RamUse(ctx1, &pb.Empty{})
+	fmt.Println(ramUse.Value)
 }
