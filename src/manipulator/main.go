@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/spaolacci/murmur3"
@@ -32,6 +33,7 @@ type Node struct {
 
 type HashRing struct {
 	ring []*Node
+	mut  sync.Mutex
 }
 
 func newHashRing(nodeNames []string) *HashRing {
@@ -41,7 +43,7 @@ func newHashRing(nodeNames []string) *HashRing {
 		nodes = append(nodes, newNode(nodeNames[i], "node_"+strconv.Itoa(i)))
 	}
 
-	return &HashRing{nodes}
+	return &HashRing{nodes, sync.Mutex{}}
 }
 
 func (hR *HashRing) sort() {
@@ -50,7 +52,7 @@ func (hR *HashRing) sort() {
 	})
 }
 
-func (hR *HashRing) addNodeHelper(n Node) (nodeBefore *Node, startHash uint64, endHash uint64) {
+func (hR *HashRing) addNodeHelper(n *Node) (nodeBefore *Node, startHash uint64, endHash uint64) {
 	idx := sort.Search(len(hR.ring), func(i int) bool {
 		return hR.ring[i].hash >= n.hash
 	})
@@ -61,7 +63,7 @@ func (hR *HashRing) addNodeHelper(n Node) (nodeBefore *Node, startHash uint64, e
 	return hR.ring[before], n.hash, hR.ring[after].hash
 }
 
-func (hR *HashRing) removeNodeHelper(n Node) (nodeBefore *Node, startHash uint64, endHash uint64) {
+func (hR *HashRing) removeNodeHelper(n *Node) (nodeBefore *Node, startHash uint64, endHash uint64) {
 	idx := sort.Search(len(hR.ring), func(i int) bool {
 		return hR.ring[i].hash == n.hash
 	})
@@ -214,6 +216,72 @@ func (hR *HashRing) makeGetCpu() func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (hR *HashRing) makeAddNode() func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		ip := r.URL.Query().Get("ip")
+		hR.mut.Lock()
+		defer hR.mut.Unlock()
+		node := newNode(ip, "node_"+strconv.Itoa(len(hR.ring)))
+
+		nodeBefore, start, end := hR.addNodeHelper(node)
+		ctx := context.Background()
+		_, err := node.nodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: nodeBefore.ip})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		hR.ring = append(hR.ring, node)
+		sort.Slice(hR.ring, func(i, j int) bool {
+			return hR.ring[i].hash < hR.ring[j].hash
+		})
+	}
+}
+
+func (hR *HashRing) makeRemoveNode() func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		ip := r.URL.Query().Get("ip")
+
+		hR.mut.Lock()
+		defer hR.mut.Unlock()
+
+		found := false
+		var idx int
+		for i := range hR.ring {
+			if hR.ring[i].ip == ip {
+				found = true
+				idx = i
+				break
+			}
+		}
+
+		if !found {
+			http.Error(w, "IP does not match any nodes", http.StatusBadRequest)
+		}
+
+		nodeBefore, start, end := hR.removeNodeHelper(hR.ring[idx])
+		ctx := context.Background()
+		_, err := nodeBefore.nodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: hR.ring[idx].ip})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		hR.ring = append(hR.ring[:idx], hR.ring[idx+1:]...)
+
+		sort.Slice(hR.ring, func(i, j int) bool {
+			return hR.ring[i].hash < hR.ring[j].hash
+		})
+
+	}
+}
+
 type Config struct {
 	Nodes  []string `yaml:"nodes"`
 	Memory struct {
@@ -240,5 +308,9 @@ func main() {
 	http.HandleFunc("/get", hashRing.makeGet())
 	http.HandleFunc("/get-cpu", hashRing.makeGetCpu())
 	http.HandleFunc("/get-ram", hashRing.makeGetRam())
+
+	http.HandleFunc("/add-node", hashRing.makeAddNode())
+	http.HandleFunc("/remove-node", hashRing.makeRemoveNode())
+
 	http.ListenAndServe(":8080", nil)
 }
