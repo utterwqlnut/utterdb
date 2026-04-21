@@ -181,13 +181,13 @@ func (hR *HashRing) makeGetRam() func(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 
-		ramUseMap := make(map[string]string)
+		ramUseMap := make(map[string]float32)
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
 		for i := range hR.ring {
 			ramUse, _ := hR.ring[i].nodeConn.client.RamUse(ctx, &pb.Empty{})
-			ramUseMap[hR.ring[i].name] = ramUse.String()
+			ramUseMap[hR.ring[i].name] = ramUse.Value
 		}
 
 		json.NewEncoder(w).Encode(ramUseMap)
@@ -203,13 +203,13 @@ func (hR *HashRing) makeGetCpu() func(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 
-		cpuUseMap := make(map[string]string)
+		cpuUseMap := make(map[string]float32)
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
 		for i := range hR.ring {
 			cpuUse, _ := hR.ring[i].nodeConn.client.CpuUse(ctx, &pb.Empty{})
-			cpuUseMap[hR.ring[i].name] = cpuUse.String()
+			cpuUseMap[hR.ring[i].name] = cpuUse.Value
 		}
 
 		json.NewEncoder(w).Encode(cpuUseMap)
