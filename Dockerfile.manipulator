@@ -1,0 +1,10 @@
+FROM golang:1.25.1
+
+WORKDIR /app
+COPY . .
+
+RUN go mod download
+
+EXPOSE 8080
+
+CMD ["go", "run", "src/manipulator/main.go"]

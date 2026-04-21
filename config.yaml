@@ -1,2 +1,6 @@
+nodes:
+  - host.docker.internal:8000
+  - host.docker.internal:8001
+  - host.docker.internal:8002
 memory:
   swappiness: 10

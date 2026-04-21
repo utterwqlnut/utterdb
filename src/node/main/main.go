@@ -14,6 +14,7 @@ import (
 )
 
 type Config struct {
+	Nodes  []string `yaml:"nodes"`
 	Memory struct {
 		Swappiness int `yaml:"swappiness"`
 	} `yaml:"memory"`
