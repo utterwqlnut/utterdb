@@ -1,13 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
+	"errors"
+	"net"
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,8 +33,9 @@ type Node struct {
 }
 
 type HashRing struct {
-	ring []*Node
-	mut  sync.Mutex
+	ring          []*Node
+	globalLock    sync.RWMutex
+	rebalanceLock sync.Mutex
 }
 
 func newHashRing(nodeNames []string) *HashRing {
@@ -42,7 +44,7 @@ func newHashRing(nodeNames []string) *HashRing {
 	for i := 0; i < len(nodeNames); i++ {
 		nodes = append(nodes, newNode(nodeNames[i], "node_"+strconv.Itoa(i)))
 	}
-	hR := HashRing{nodes, sync.Mutex{}}
+	hR := HashRing{nodes, sync.RWMutex{}, sync.Mutex{}}
 	hR.sort()
 	return &hR
 }
@@ -53,6 +55,7 @@ func (hR *HashRing) sort() {
 	})
 }
 
+// These 3 helper methods are NOT thread safe
 func (hR *HashRing) addNodeHelper(n *Node) (nodeBefore *Node, startHash uint64, endHash uint64) {
 	idx := sort.Search(len(hR.ring), func(i int) bool {
 		return hR.ring[i].hash >= n.hash
@@ -95,184 +98,243 @@ func newNode(ip string, name string) *Node {
 	}
 }
 
-func (hR *HashRing) makeWrite() func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
+func (hR *HashRing) write(key string, keyType string, value string, valueType string) error {
+	hR.globalLock.RLock()
+	defer hR.globalLock.RUnlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	node := hR.getNode(key)
+	_, err := node.nodeConn.client.Write(ctx, &pb.Data{Key: key,
+		KeyType: keyType, Value: value, ValueType: valueType})
+
+	return err
+}
+
+func (hR *HashRing) erase(key string, keyType string) error {
+	hR.globalLock.RLock()
+	defer hR.globalLock.RUnlock()
+
+	node := hR.getNode(key)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	_, err := node.nodeConn.client.Erase(ctx, &pb.Request{Key: key,
+		Type: keyType})
+
+	return err
+}
+
+func (hR *HashRing) get(key string, keyType string) (string, error) {
+	hR.globalLock.RLock()
+	defer hR.globalLock.RUnlock()
+	node := hR.getNode(key)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	value, err := node.nodeConn.client.Get(ctx, &pb.Request{Key: key,
+		Type: keyType})
+
+	if err != nil {
+		return "", err
+	}
+
+	return value.Value, nil
+
+}
+
+func (hR *HashRing) getRam() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	returnString := ""
+
+	hR.globalLock.RLock()
+	for i := range hR.ring {
+		ramUse, _ := hR.ring[i].nodeConn.client.RamUse(ctx, &pb.Empty{})
+		returnString += strconv.FormatFloat(float64(ramUse.Value), 'e', -1, 32)
+		if i != len(hR.ring)-1 {
+			returnString += " "
 		}
+	}
+	hR.globalLock.RUnlock()
 
-		key := r.URL.Query().Get("key")
-		value := r.URL.Query().Get("value")
-		keyType := r.URL.Query().Get("keyType")
-		valueType := r.URL.Query().Get("valueType")
+	return returnString
+}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancel()
+func (hR *HashRing) getCpu() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	returnString := ""
 
-		node := hR.getNode(key)
-		_, err := node.nodeConn.client.Write(ctx, &pb.Data{Key: key,
-			KeyType: keyType, Value: value, ValueType: valueType})
+	hR.globalLock.RLock()
+	for i := range hR.ring {
+		cpuUse, _ := hR.ring[i].nodeConn.client.CpuUse(ctx, &pb.Empty{})
+		returnString += strconv.FormatFloat(float64(cpuUse.Value), 'e', -1, 32)
+		if i != len(hR.ring)-1 {
+			returnString += " "
+		}
+	}
+	hR.globalLock.RUnlock()
+
+	return returnString
+}
+
+func (hR *HashRing) addNode(ip string) error {
+	hR.rebalanceLock.Lock()
+	defer hR.rebalanceLock.Unlock()
+	node := newNode(ip, "node_"+strconv.Itoa(len(hR.ring)))
+
+	nodeBefore, start, end := hR.addNodeHelper(node)
+	ctx := context.Background()
+	_, err := node.nodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: nodeBefore.ip})
+
+	if err != nil {
+		return err
+	}
+	hR.globalLock.Lock()
+	hR.ring = append(hR.ring, node)
+	hR.sort()
+	hR.globalLock.Unlock()
+
+	return nil
+}
+
+func (hR *HashRing) removeNode(ip string) error {
+	hR.rebalanceLock.Lock()
+	defer hR.rebalanceLock.Unlock()
+
+	found := false
+	var idx int
+	for i := range hR.ring {
+		if hR.ring[i].ip == ip {
+			found = true
+			idx = i
+			break
+		}
+	}
+
+	if !found {
+		return errors.New("IP not found")
+	}
+
+	nodeBefore, start, end := hR.removeNodeHelper(hR.ring[idx])
+	ctx := context.Background()
+	_, err := nodeBefore.nodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: hR.ring[idx].ip})
+
+	if err != nil {
+		return err
+	}
+
+	hR.globalLock.Lock()
+	hR.ring = append(hR.ring[:idx], hR.ring[idx+1:]...)
+	hR.sort()
+	hR.globalLock.Unlock()
+
+	return nil
+}
+
+func (hR *HashRing) handleTcp(conn net.Conn) {
+	defer conn.Close()
+	reader := bufio.NewReader(conn)
+
+	for {
+		msg, err := reader.ReadString('\n') // CMD|ARG1|ARG2...
 
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
-}
-
-func (hR *HashRing) makeErase() func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
+			return // connection closed
 		}
 
-		key := r.URL.Query().Get("key")
-		keyType := r.URL.Query().Get("keyType")
+		msg = strings.TrimSpace(msg)
+		cmd := strings.Split(msg, "|")
 
-		node := hR.getNode(key)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancel()
-
-		_, err := node.nodeConn.client.Erase(ctx, &pb.Request{Key: key,
-			Type: keyType})
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
-}
-
-func (hR *HashRing) makeGet() func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
+		if len(cmd) == 0 || cmd[0] == "" {
+			conn.Write([]byte("ERR empty command\n"))
+			continue
 		}
 
-		key := r.URL.Query().Get("key")
-		keyType := r.URL.Query().Get("keyType")
+		switch cmd[0] {
 
-		node := hR.getNode(key)
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancel()
-
-		value, err := node.nodeConn.client.Get(ctx, &pb.Request{Key: key,
-			Type: keyType})
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		fmt.Fprintln(w, value.Value)
-	}
-}
-
-func (hR *HashRing) makeGetRam() func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		ramUseMap := make(map[string]float32)
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancel()
-
-		for i := range hR.ring {
-			ramUse, _ := hR.ring[i].nodeConn.client.RamUse(ctx, &pb.Empty{})
-			ramUseMap[hR.ring[i].name] = ramUse.Value
-		}
-
-		json.NewEncoder(w).Encode(ramUseMap)
-	}
-}
-
-func (hR *HashRing) makeGetCpu() func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		cpuUseMap := make(map[string]float32)
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancel()
-
-		for i := range hR.ring {
-			cpuUse, _ := hR.ring[i].nodeConn.client.CpuUse(ctx, &pb.Empty{})
-			cpuUseMap[hR.ring[i].name] = cpuUse.Value
-		}
-
-		json.NewEncoder(w).Encode(cpuUseMap)
-	}
-}
-
-func (hR *HashRing) makeAddNode() func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		ip := r.URL.Query().Get("ip")
-		hR.mut.Lock()
-		defer hR.mut.Unlock()
-		node := newNode(ip, "node_"+strconv.Itoa(len(hR.ring)))
-
-		nodeBefore, start, end := hR.addNodeHelper(node)
-		ctx := context.Background()
-		_, err := node.nodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: nodeBefore.ip})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		hR.ring = append(hR.ring, node)
-		hR.sort()
-	}
-}
-
-func (hR *HashRing) makeRemoveNode() func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		ip := r.URL.Query().Get("ip")
-		hR.mut.Lock()
-		defer hR.mut.Unlock()
-
-		found := false
-		var idx int
-		for i := range hR.ring {
-			if hR.ring[i].ip == ip {
-				found = true
-				idx = i
-				break
+		case "WRITE":
+			if len(cmd) != 5 {
+				conn.Write([]byte("ERR invalid Write command\n"))
+				continue
 			}
-		}
+			err := hR.write(cmd[1], cmd[2], cmd[3], cmd[4])
+			if err != nil {
+				conn.Write([]byte("ERR " + err.Error() + "\n"))
+				continue
+			}
+			conn.Write([]byte("OK\n"))
 
-		if !found {
-			http.Error(w, "IP does not match any nodes", http.StatusBadRequest)
-		}
+		case "GET":
+			if len(cmd) != 3 {
+				conn.Write([]byte("ERR invalid Get command\n"))
+				continue
+			}
+			value, err := hR.get(cmd[1], cmd[2])
+			if err != nil {
+				conn.Write([]byte("ERR " + err.Error() + "\n"))
+				continue
+			}
+			conn.Write([]byte(value + "\n"))
 
-		nodeBefore, start, end := hR.removeNodeHelper(hR.ring[idx])
-		ctx := context.Background()
-		_, err := nodeBefore.nodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: hR.ring[idx].ip})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		hR.ring = append(hR.ring[:idx], hR.ring[idx+1:]...)
-		hR.sort()
+		case "ERASE":
+			if len(cmd) != 3 {
+				conn.Write([]byte("ERR invalid Erase command\n"))
+				continue
+			}
+			err := hR.erase(cmd[1], cmd[2])
+			if err != nil {
+				conn.Write([]byte("ERR " + err.Error() + "\n"))
+				continue
+			}
+			conn.Write([]byte("OK\n"))
 
+		case "ADDNODE":
+			if len(cmd) != 2 {
+				conn.Write([]byte("ERR invalid Add Node command\n"))
+				continue
+			}
+			err := hR.addNode(cmd[1])
+			if err != nil {
+				conn.Write([]byte("ERR " + err.Error() + "\n"))
+				continue
+			}
+			conn.Write([]byte("OK\n"))
+
+		case "REMOVENODE":
+			if len(cmd) != 2 {
+				conn.Write([]byte("ERR invalid Remove Node command\n"))
+				continue
+			}
+			err := hR.removeNode(cmd[1])
+			if err != nil {
+				conn.Write([]byte("ERR " + err.Error() + "\n"))
+				continue
+			}
+			conn.Write([]byte("OK\n"))
+
+		case "GETRAM":
+			if len(cmd) != 1 {
+				conn.Write([]byte("ERR invalid Get Ram command\n"))
+				continue
+			}
+			value := hR.getRam()
+			conn.Write([]byte(value + "\n"))
+
+		case "GETCPU":
+			if len(cmd) != 1 {
+				conn.Write([]byte("ERR invalid Get Cpu command\n"))
+				continue
+			}
+			value := hR.getCpu()
+			conn.Write([]byte(value + "\n"))
+
+		default:
+			conn.Write([]byte("ERR unknown command\n"))
+		}
 	}
 }
 
@@ -298,14 +360,18 @@ func main() {
 		defer hashRing.ring[i].nodeConn.conn.Close()
 	}
 
-	http.HandleFunc("/erase", hashRing.makeErase())
-	http.HandleFunc("/write", hashRing.makeWrite())
-	http.HandleFunc("/get", hashRing.makeGet())
-	http.HandleFunc("/get-cpu", hashRing.makeGetCpu())
-	http.HandleFunc("/get-ram", hashRing.makeGetRam())
+	lis, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		panic(err)
+	}
 
-	http.HandleFunc("/add-node", hashRing.makeAddNode())
-	http.HandleFunc("/remove-node", hashRing.makeRemoveNode())
+	defer lis.Close()
 
-	http.ListenAndServe(":8080", nil)
+	for {
+		conn, err := lis.Accept()
+		if err != nil {
+			continue
+		}
+		go hashRing.handleTcp(conn)
+	}
 }
