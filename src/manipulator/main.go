@@ -38,6 +38,15 @@ func (hR *HashRing) addNode(n Node) (nodeBefore Node, startHash uint64, endHash 
 	return hR.ring[before], n.hash, hR.ring[after].hash
 }
 
+func (hR *HashRing) getNode(key string) Node {
+	keyHash := murmur3.Sum64([]byte(key))
+	idx := sort.Search(len(hR.ring),func(i int) bool {
+		return hR.ring[i].hash >= keyHash
+	})
+
+	return hR.ring[idx]
+}
+
 func newNode(ip string, name string) *Node {
 	return &Node{
 		ip:   ip,
