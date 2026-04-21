@@ -15,6 +15,7 @@ import (
 
 type Config struct {
 	Nodes  []string `yaml:"nodes"`
+	Shards int      `yaml:"shards"`
 	Memory struct {
 		Swappiness int `yaml:"swappiness"`
 	} `yaml:"memory"`
@@ -44,11 +45,8 @@ func main() {
 		log.Fatalf("Failed to start tcp server")
 	}
 
-	ipCommand := exec.Command("hostname", "-I")
-	ip, _ := ipCommand.Output()
-
 	grpcServer := grpc.NewServer()
-	keyValueServer := server.NewNodeServer(2, string(ip))
+	keyValueServer := server.NewNodeServer(config.Shards, args[2]) // TODO: Replace shard w config
 
 	pb.RegisterNodeServer(grpcServer, keyValueServer)
 

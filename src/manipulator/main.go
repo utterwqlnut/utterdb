@@ -42,8 +42,9 @@ func newHashRing(nodeNames []string) *HashRing {
 	for i := 0; i < len(nodeNames); i++ {
 		nodes = append(nodes, newNode(nodeNames[i], "node_"+strconv.Itoa(i)))
 	}
-
-	return &HashRing{nodes, sync.Mutex{}}
+	hR := HashRing{nodes, sync.Mutex{}}
+	hR.sort()
+	return &hR
 }
 
 func (hR *HashRing) sort() {
@@ -58,7 +59,7 @@ func (hR *HashRing) addNodeHelper(n *Node) (nodeBefore *Node, startHash uint64, 
 	})
 
 	before := ((idx - 1) + len(hR.ring)) % (len(hR.ring)) // Find the node before this new added node
-	after := (idx + 1) % len(hR.ring)
+	after := (idx) % len(hR.ring)
 
 	return hR.ring[before], n.hash, hR.ring[after].hash
 }
@@ -159,7 +160,6 @@ func (hR *HashRing) makeGet() func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		fmt.Println(node.name)
 		value, err := node.nodeConn.client.Get(ctx, &pb.Request{Key: key,
 			Type: keyType})
 
@@ -235,9 +235,7 @@ func (hR *HashRing) makeAddNode() func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		hR.ring = append(hR.ring, node)
-		sort.Slice(hR.ring, func(i, j int) bool {
-			return hR.ring[i].hash < hR.ring[j].hash
-		})
+		hR.sort()
 	}
 }
 
@@ -248,7 +246,6 @@ func (hR *HashRing) makeRemoveNode() func(w http.ResponseWriter, r *http.Request
 			return
 		}
 		ip := r.URL.Query().Get("ip")
-
 		hR.mut.Lock()
 		defer hR.mut.Unlock()
 
@@ -274,16 +271,14 @@ func (hR *HashRing) makeRemoveNode() func(w http.ResponseWriter, r *http.Request
 			return
 		}
 		hR.ring = append(hR.ring[:idx], hR.ring[idx+1:]...)
-
-		sort.Slice(hR.ring, func(i, j int) bool {
-			return hR.ring[i].hash < hR.ring[j].hash
-		})
+		hR.sort()
 
 	}
 }
 
 type Config struct {
 	Nodes  []string `yaml:"nodes"`
+	Shards int      `yaml:"shards"`
 	Memory struct {
 		Swappiness int `yaml:"swappiness"`
 	} `yaml:"memory"`
