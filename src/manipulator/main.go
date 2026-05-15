@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"sort"
@@ -56,26 +57,33 @@ func (hR *HashRing) sort() {
 }
 
 // These 3 helper methods are NOT thread safe
-func (hR *HashRing) addNodeHelper(n *Node) (nodeBefore *Node, startHash uint64, endHash uint64) {
+func (hR *HashRing) addNodeHelper(n *Node) (successor *Node, startHash uint64, endHash uint64) {
 	idx := sort.Search(len(hR.ring), func(i int) bool {
 		return hR.ring[i].hash >= n.hash
-	})
+	}) % len(hR.ring)
 
-	before := ((idx - 1) + len(hR.ring)) % (len(hR.ring)) // Find the node before this new added node
-	after := (idx) % len(hR.ring)
+	successor = hR.ring[idx]
 
-	return hR.ring[before], n.hash, hR.ring[after].hash
+	beforeIdx := (idx - 1 + len(hR.ring)) % len(hR.ring)
+	startHash = hR.ring[beforeIdx].hash
+	endHash = n.hash
+
+	return successor, startHash, endHash
 }
-
-func (hR *HashRing) removeNodeHelper(n *Node) (nodeBefore *Node, startHash uint64, endHash uint64) {
+func (hR *HashRing) removeNodeHelper(n *Node) (successor *Node, startHash uint64, endHash uint64) {
 	idx := sort.Search(len(hR.ring), func(i int) bool {
 		return hR.ring[i].hash == n.hash
 	})
 
-	before := ((idx - 1) + len(hR.ring)) % (len(hR.ring)) // Find the node before this new added node
-	after := (idx + 1) % len(hR.ring)
+	afterIdx := (idx + 1) % len(hR.ring)
+	successor = hR.ring[afterIdx]
 
-	return hR.ring[before], n.hash, hR.ring[after].hash
+	beforeIdx := (idx - 1 + len(hR.ring)) % len(hR.ring)
+
+	startHash = hR.ring[beforeIdx].hash
+	endHash = n.hash // The range the dying node owned
+
+	return successor, startHash, endHash
 }
 
 func (hR *HashRing) getNode(key string) *Node {
@@ -187,6 +195,7 @@ func (hR *HashRing) addNode(ip string) error {
 	node := newNode(ip, "node_"+strconv.Itoa(len(hR.ring)))
 
 	nodeBefore, start, end := hR.addNodeHelper(node)
+	fmt.Println(nodeBefore.name)
 	ctx := context.Background()
 	_, err := node.nodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: nodeBefore.ip})
 

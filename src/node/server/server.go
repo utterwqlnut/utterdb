@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"sync"
 
 	pb "github.com/utterwqlnut/utterdb/protos"
 	"google.golang.org/grpc"
@@ -11,19 +13,20 @@ import (
 
 type Server struct {
 	pb.UnimplementedNodeServer
-	kv           *internalKeyValueStore
-	migrating    bool
-	migrateStart uint64
-	migrateEnd   uint64
-	migrateShard int
-	ip           string
+	kv            *internalKeyValueStore
+	migrating     bool
+	migrateLock   sync.RWMutex
+	ip            string
+	migrateIp     string
+	migrateClient pb.NodeClient
 }
 
 func NewNodeServer(shards int, ip string) *Server {
 	return &Server{
-		kv:        newInternalKeyValueStore(shards),
-		migrating: false,
-		ip:        ip,
+		kv:          newInternalKeyValueStore(shards),
+		migrating:   false,
+		ip:          ip,
+		migrateLock: sync.RWMutex{},
 	}
 }
 
@@ -48,6 +51,7 @@ func (s *Server) Get(ctx context.Context, rq *pb.Request) (*pb.Value, error) {
 }
 
 func (s *Server) Write(ctx context.Context, data *pb.Data) (*pb.Empty, error) {
+	fmt.Println(data.Key)
 	key, keyErr := ParseToStringable(data.Key, data.KeyType)
 	value, valErr := ParseToStringable(data.Value, data.ValueType)
 
@@ -59,7 +63,16 @@ func (s *Server) Write(ctx context.Context, data *pb.Data) (*pb.Empty, error) {
 		return &pb.Empty{}, valErr
 	}
 
-	s.kv.write(key, value, s.migrating, s.migrateShard, s.migrateStart, s.migrateEnd)
+	s.migrateLock.RLock()
+	if s.migrating {
+		_, err := s.migrateClient.Write(ctx, data)
+		if err != nil {
+			return nil, err
+		}
+	}
+	s.migrateLock.RUnlock()
+
+	s.kv.write(key, value)
 	return &pb.Empty{}, nil
 }
 
@@ -70,7 +83,16 @@ func (s *Server) Erase(ctx context.Context, rq *pb.Request) (*pb.Empty, error) {
 		return &pb.Empty{}, err1
 	}
 
-	err2 := s.kv.erase(key, s.migrating, s.migrateShard, s.migrateStart, s.migrateEnd)
+	s.migrateLock.RLock()
+	if s.migrating {
+		_, err := s.migrateClient.Erase(ctx, rq)
+		if err != nil {
+			return nil, err
+		}
+	}
+	s.migrateLock.RUnlock()
+
+	err2 := s.kv.erase(key)
 
 	return &pb.Empty{}, err2
 
@@ -90,18 +112,27 @@ func getTypeString(x Stringable) string {
 }
 
 func (s *Server) MoveData(dataReq *pb.DataStreamReq, stream grpc.ServerStreamingServer[pb.Data]) error {
-	s.migrateStart = dataReq.Start
-	s.migrateEnd = dataReq.End
+	s.migrateLock.Lock()
 	s.migrating = true
 
+	conn, err := grpc.Dial(
+		dataReq.SourceIp,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return err
+	}
+	s.migrateClient = pb.NewNodeClient(conn)
+	s.migrateLock.Unlock()
+
+	defer conn.Close()
+
 	for i := 0; i < s.kv.shards; i++ {
-		s.migrateShard = i
-		mp := s.kv.getSnapShot(i, s.migrateStart, s.migrateEnd)
+		mp := s.kv.getSnapShot(i, dataReq.Start, dataReq.End)
 
 		for key, value := range mp {
 			keyType := getTypeString(key)
 			valueType := getTypeString(value)
-
 			stream.Send(&pb.Data{
 				Key:       key.Stringify(),
 				Value:     value.Stringify(),
@@ -111,39 +142,10 @@ func (s *Server) MoveData(dataReq *pb.DataStreamReq, stream grpc.ServerStreaming
 
 		}
 	}
-	conn, err := grpc.Dial(
-		dataReq.SourceIp,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
 
-	client := pb.NewNodeClient(conn)
-	ctx := context.Background()
-
-	// Now for going through the log
+	s.migrateLock.Lock()
 	s.migrating = false
-	for _, function := range s.kv.log {
-		switch function.methodName {
-		case "write":
-			client.Write(ctx,
-				&pb.Data{
-					Key:       function.key.Stringify(),
-					KeyType:   getTypeString(function.key),
-					Value:     function.value.Stringify(),
-					ValueType: getTypeString(function.value),
-				})
-		case "erase":
-			client.Erase(ctx,
-				&pb.Request{
-					Key:  function.key.Stringify(),
-					Type: getTypeString(function.key),
-				})
-		}
-	}
-	s.kv.clearLog()
+	s.migrateLock.Unlock()
 
 	return nil
 
@@ -192,7 +194,7 @@ func (s *Server) InitiateMove(ctx context.Context, reb *pb.Rebalance) (*pb.Empty
 			return &pb.Empty{}, valErr
 		}
 
-		s.kv.write(key, value, false, 0, 0, 0)
+		s.kv.write(key, value)
 	}
 
 	return &pb.Empty{}, nil

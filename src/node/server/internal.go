@@ -12,7 +12,6 @@ import (
 type internalKeyValueStore struct {
 	store  []map[Stringable]Stringable
 	mut    []sync.RWMutex
-	log    []Function
 	shards int
 }
 
@@ -34,10 +33,6 @@ func hash(key Stringable) uint64 {
 
 func (kv *internalKeyValueStore) getShard(key Stringable) int {
 	return int(hash(key) % uint64(len(kv.store)))
-}
-
-func (kv *internalKeyValueStore) clearLog() {
-	kv.log = kv.log[:0]
 }
 
 func withinHashRange(startHash uint64, endHash uint64, hash uint64) bool {
@@ -76,20 +71,16 @@ func (kv *internalKeyValueStore) get(key Stringable) (Stringable, error) {
 	return value, nil
 }
 
-func (kv *internalKeyValueStore) write(key Stringable, value Stringable, toLog bool, shardRestrict int, startHash uint64, endHash uint64) {
+func (kv *internalKeyValueStore) write(key Stringable, value Stringable) {
 	shardId := kv.getShard(key)
 	kv.mut[shardId].Lock()
 
 	kv.store[shardId][key] = value
 
-	if toLog && shardId <= shardRestrict && withinHashRange(startHash, endHash, hash(key)) {
-		kv.log = append(kv.log, Function{"write", key, value})
-	}
-
 	kv.mut[shardId].Unlock()
 }
 
-func (kv *internalKeyValueStore) erase(key Stringable, toLog bool, shardRestrict int, startHash uint64, endHash uint64) error {
+func (kv *internalKeyValueStore) erase(key Stringable) error {
 	shardId := kv.getShard(key)
 
 	kv.mut[shardId].Lock()
@@ -102,10 +93,6 @@ func (kv *internalKeyValueStore) erase(key Stringable, toLog bool, shardRestrict
 	}
 
 	delete(kv.store[shardId], key)
-
-	if toLog && shardId <= shardRestrict && withinHashRange(startHash, endHash, hash(key)) {
-		kv.log = append(kv.log, Function{"erase", key, nil})
-	}
 
 	kv.mut[shardId].Unlock()
 

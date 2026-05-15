@@ -1,7 +1,7 @@
 nodes:
   - localhost:8000
-  - localhost:8001
   - localhost:8002
+
 shards: 2
 memory:
   swappiness: 10
