@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"sync"
 
@@ -51,7 +50,6 @@ func (s *Server) Get(ctx context.Context, rq *pb.Request) (*pb.Value, error) {
 }
 
 func (s *Server) Write(ctx context.Context, data *pb.Data) (*pb.Empty, error) {
-	fmt.Println(data.Key)
 	key, keyErr := ParseToStringable(data.Key, data.KeyType)
 	value, valErr := ParseToStringable(data.Value, data.ValueType)
 
@@ -63,6 +61,8 @@ func (s *Server) Write(ctx context.Context, data *pb.Data) (*pb.Empty, error) {
 		return &pb.Empty{}, valErr
 	}
 
+	s.kv.write(key, value)
+
 	s.migrateLock.RLock()
 	if s.migrating {
 		_, err := s.migrateClient.Write(ctx, data)
@@ -72,7 +72,6 @@ func (s *Server) Write(ctx context.Context, data *pb.Data) (*pb.Empty, error) {
 	}
 	s.migrateLock.RUnlock()
 
-	s.kv.write(key, value)
 	return &pb.Empty{}, nil
 }
 
@@ -83,6 +82,8 @@ func (s *Server) Erase(ctx context.Context, rq *pb.Request) (*pb.Empty, error) {
 		return &pb.Empty{}, err1
 	}
 
+	err2 := s.kv.erase(key)
+
 	s.migrateLock.RLock()
 	if s.migrating {
 		_, err := s.migrateClient.Erase(ctx, rq)
@@ -91,8 +92,6 @@ func (s *Server) Erase(ctx context.Context, rq *pb.Request) (*pb.Empty, error) {
 		}
 	}
 	s.migrateLock.RUnlock()
-
-	err2 := s.kv.erase(key)
 
 	return &pb.Empty{}, err2
 
@@ -139,7 +138,6 @@ func (s *Server) MoveData(dataReq *pb.DataStreamReq, stream grpc.ServerStreaming
 				KeyType:   keyType,
 				ValueType: valueType,
 			})
-
 		}
 	}
 

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"sort"
@@ -195,7 +194,6 @@ func (hR *HashRing) addNode(ip string) error {
 	node := newNode(ip, "node_"+strconv.Itoa(len(hR.ring)))
 
 	nodeBefore, start, end := hR.addNodeHelper(node)
-	fmt.Println(nodeBefore.name)
 	ctx := context.Background()
 	_, err := node.nodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: nodeBefore.ip})
 

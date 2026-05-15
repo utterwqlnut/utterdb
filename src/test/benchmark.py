@@ -1,5 +1,6 @@
 import random
 import socket
+import threading
 import time
 
 from locust import User, between, events, task
@@ -8,11 +9,12 @@ from locust import User, between, events, task
 class TCPKeyValueUser(User):
     wait_time = between(0, 0)
 
-    # shared seed pool (per process, not per VU)
     seed_keys = []
+    expected = {}
+    lock = threading.Lock()
 
     def on_start(self):
-        self.host = "16.59.40.30"
+        self.host = "localhost"
         self.port = 8080
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -23,7 +25,6 @@ class TCPKeyValueUser(User):
         except Exception as e:
             print(f"Connection failed: {e}")
 
-        # populate seed keys once (only first VU does heavy lifting)
         if not TCPKeyValueUser.seed_keys:
             self._seed_keys()
 
@@ -35,63 +36,107 @@ class TCPKeyValueUser(User):
             val = f"value_{i}"
 
             try:
-                self.sock.sendall(f"WRITE|{key}|string|{val}|string\n".encode("utf-8"))
+                self.sock.sendall(f"WRITE|{key}|string|{val}|string\n".encode())
                 self.sock.recv(1024)
-                TCPKeyValueUser.seed_keys.append(key)
+
+                with TCPKeyValueUser.lock:
+                    TCPKeyValueUser.seed_keys.append(key)
+                    TCPKeyValueUser.expected[key] = val
+
             except Exception as e:
                 print(f"Seeding error: {e}")
                 break
 
         print(f"Seeded {len(TCPKeyValueUser.seed_keys)} keys")
 
-    @task(7)  # ~70%
+    @task(7)
     def read_task(self):
         if not TCPKeyValueUser.seed_keys:
             return
 
         key = random.choice(TCPKeyValueUser.seed_keys)
-        self._send_command(f"GET|{key}|string", "GET")
 
-    @task(3)  # ~30%
+        with TCPKeyValueUser.lock:
+            expected_val = TCPKeyValueUser.expected.get(key)
+
+        self._send_get(key, expected_val)
+
+    @task(3)
     def write_task(self):
         key = f"write_{time.time()}_{random.randint(0, 1_000_000)}"
         val = "bench_val"
 
-        self._send_command(f"WRITE|{key}|string|{val}|string", "WRITE")
+        success = self._send_command(f"WRITE|{key}|string|{val}|string", "WRITE (µs)")
 
-        # optionally add to read pool (keeps dataset fresh)
-        if random.random() < 0.5:
-            TCPKeyValueUser.seed_keys.append(key)
+        if success:
+            with TCPKeyValueUser.lock:
+                TCPKeyValueUser.expected[key] = val
+                if random.random() < 0.5:
+                    TCPKeyValueUser.seed_keys.append(key)
 
-    def _send_command(self, command, name):
-        start_time = time.time()
+    def _now_us(self):
+        return time.perf_counter_ns() // 1000
+
+    def _send_get(self, key, expected_val):
+        start = self._now_us()
 
         try:
-            self.sock.sendall((command + "\n").encode("utf-8"))
-            data = self.sock.recv(1024).decode("utf-8").strip()
+            self.sock.sendall(f"GET|{key}|string\n".encode())
+            data = self.sock.recv(1024).decode().strip()
 
-            total_time = int((time.time() - start_time) * 1000)
-
-            events.request.fire(
-                request_type="TCP",
-                name=name,
-                response_time=total_time,
-                response_length=len(data),
-                exception=None,
-            )
+            if expected_val not in data:
+                events.request.fire(
+                    request_type="TCP",
+                    name="GET_MISMATCH (µs)",
+                    response_time=self._now_us() - start,  # µs
+                    response_length=len(data),
+                    exception=Exception(f"Expected {expected_val}, got {data}"),
+                )
+            else:
+                events.request.fire(
+                    request_type="TCP",
+                    name="GET (µs)",
+                    response_time=self._now_us() - start,  # µs
+                    response_length=len(data),
+                    exception=None,
+                )
 
         except Exception as e:
-            total_time = int((time.time() - start_time) * 1000)
-
             events.request.fire(
                 request_type="TCP",
-                name=name,
-                response_time=total_time,
+                name="GET (µs)",
+                response_time=self._now_us() - start,
                 response_length=0,
                 exception=e,
             )
+            self.on_start()
 
-            self.on_start()  # reconnect on failure
+    def _send_command(self, command, name):
+        start = self._now_us()
+
+        try:
+            self.sock.sendall((command + "\n").encode())
+            data = self.sock.recv(1024).decode().strip()
+
+            events.request.fire(
+                request_type="TCP",
+                name=name,
+                response_time=self._now_us() - start,  # µs
+                response_length=len(data),
+                exception=None,
+            )
+            return True
+
+        except Exception as e:
+            events.request.fire(
+                request_type="TCP",
+                name=name,
+                response_time=self._now_us() - start,
+                response_length=0,
+                exception=e,
+            )
+            self.on_start()
+            return False
 
     def on_stop(self):
         self.sock.close()
