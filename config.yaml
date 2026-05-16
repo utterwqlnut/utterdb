@@ -4,4 +4,4 @@ nodes:
 
 shards: 128
 memory:
-  swappiness: 10
+  swappiness: 0
