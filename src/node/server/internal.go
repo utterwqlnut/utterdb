@@ -40,12 +40,20 @@ func withinHashRange(startHash uint64, endHash uint64, hash uint64) bool {
 		endHash < startHash && (hash > startHash || hash < endHash)
 }
 
-func (kv *internalKeyValueStore) lockShard(shardId int) {
-	kv.mut[shardId].RLock()
+func (kv *internalKeyValueStore) lockShard(shardId int, write bool) {
+	if write {
+		kv.mut[shardId].Lock()
+	} else {
+		kv.mut[shardId].RLock()
+	}
 }
 
-func (kv *internalKeyValueStore) unlockShard(shardId int) {
-	kv.mut[shardId].RUnlock()
+func (kv *internalKeyValueStore) unlockShard(shardId int, write bool) {
+	if write {
+		kv.mut[shardId].Unlock()
+	} else {
+		kv.mut[shardId].RUnlock()
+	}
 }
 
 func (kv *internalKeyValueStore) getSnapShot(shardId int, startHash uint64, endHash uint64) map[Stringable]Stringable {
@@ -84,21 +92,27 @@ func (kv *internalKeyValueStore) write(key Stringable, value Stringable) {
 	kv.mut[shardId].Unlock()
 }
 
-func (kv *internalKeyValueStore) erase(key Stringable) error {
+func (kv *internalKeyValueStore) erase(key Stringable, locked bool) error {
 	shardId := kv.getShard(key)
 
-	kv.mut[shardId].Lock()
+	if !locked {
+		kv.mut[shardId].Lock()
+	}
 
 	_, ok := kv.store[shardId][key]
 
 	if ok != true {
-		kv.mut[shardId].Unlock()
+		if !locked {
+			kv.mut[shardId].Unlock()
+		}
 		return errors.New("Key not in the store")
 	}
 
 	delete(kv.store[shardId], key)
 
-	kv.mut[shardId].Unlock()
+	if !locked {
+		kv.mut[shardId].Unlock()
+	}
 
 	return nil
 }

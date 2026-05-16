@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"sort"
@@ -200,7 +201,7 @@ func (hR *HashRing) addNode(ip string) error {
 	if err != nil {
 		return err
 	}
-
+	fmt.Println("Got to here")
 	hR.globalLock.Lock()
 	hR.ring = append(hR.ring, node)
 	hR.sort()
