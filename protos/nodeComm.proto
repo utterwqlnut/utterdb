@@ -10,6 +10,7 @@ service Node {
   rpc CpuUse(Empty) returns (Float) {}
   rpc Write(Data) returns (Empty) {}
   rpc InitiateMove(Rebalance) returns (Empty) {}
+  rpc ClearOldData(Range) returns (Empty) {}
   rpc MoveData(DataStreamReq) returns (stream Data) {}
 }
 
@@ -37,6 +38,11 @@ message Rebalance {
   string ip = 1;
   uint64 start = 2;
   uint64 end = 3;
+}
+
+message Range {
+  uint64 start = 1;
+  uint64 end = 2;
 }
 
 message DataStreamReq {

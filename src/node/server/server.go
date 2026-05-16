@@ -110,6 +110,20 @@ func getTypeString(x Stringable) string {
 	return xType
 }
 
+func (s *Server) ClearOldData(ctx context.Context, rng *pb.Range) (*pb.Empty, error) {
+	for i := 0; i < s.kv.shards; i++ {
+		s.kv.lockShard(i)
+		mp := s.kv.getSnapShot(i, rng.Start, rng.End)
+
+		for key, _ := range mp {
+			s.kv.erase(key)
+		}
+
+		s.kv.unlockShard(i)
+	}
+	return &pb.Empty{}, nil
+}
+
 func (s *Server) MoveData(dataReq *pb.DataStreamReq, stream grpc.ServerStreamingServer[pb.Data]) error {
 	s.migrateLock.Lock()
 	s.migrating = true
@@ -127,6 +141,7 @@ func (s *Server) MoveData(dataReq *pb.DataStreamReq, stream grpc.ServerStreaming
 	defer conn.Close()
 
 	for i := 0; i < s.kv.shards; i++ {
+		s.kv.lockShard(i)
 		mp := s.kv.getSnapShot(i, dataReq.Start, dataReq.End)
 
 		for key, value := range mp {
@@ -139,6 +154,7 @@ func (s *Server) MoveData(dataReq *pb.DataStreamReq, stream grpc.ServerStreaming
 				ValueType: valueType,
 			})
 		}
+		s.kv.unlockShard(i)
 	}
 
 	s.migrateLock.Lock()

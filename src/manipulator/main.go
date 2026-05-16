@@ -200,10 +200,13 @@ func (hR *HashRing) addNode(ip string) error {
 	if err != nil {
 		return err
 	}
+
 	hR.globalLock.Lock()
 	hR.ring = append(hR.ring, node)
 	hR.sort()
 	hR.globalLock.Unlock()
+
+	nodeBefore.nodeConn.client.ClearOldData(ctx, &pb.Range{Start: start, End: end})
 
 	return nil
 }

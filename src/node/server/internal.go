@@ -40,9 +40,16 @@ func withinHashRange(startHash uint64, endHash uint64, hash uint64) bool {
 		endHash < startHash && (hash > startHash || hash < endHash)
 }
 
-func (kv *internalKeyValueStore) getSnapShot(shardId int, startHash uint64, endHash uint64) map[Stringable]Stringable {
+func (kv *internalKeyValueStore) lockShard(shardId int) {
 	kv.mut[shardId].RLock()
+}
 
+func (kv *internalKeyValueStore) unlockShard(shardId int) {
+	kv.mut[shardId].RUnlock()
+}
+
+func (kv *internalKeyValueStore) getSnapShot(shardId int, startHash uint64, endHash uint64) map[Stringable]Stringable {
+	// THIS FUNCTION IS NOT THREAD SAFE CALLER MUST LOCK FOR IT
 	snapshot := make(map[Stringable]Stringable)
 
 	for key, value := range kv.store[shardId] {
@@ -51,9 +58,6 @@ func (kv *internalKeyValueStore) getSnapShot(shardId int, startHash uint64, endH
 			snapshot[key] = value
 		}
 	}
-
-	kv.mut[shardId].RUnlock()
-
 	return snapshot
 }
 
