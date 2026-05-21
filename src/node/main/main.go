@@ -8,18 +8,11 @@ import (
 	"strconv"
 
 	pb "github.com/utterwqlnut/utterdb/protos"
+	"github.com/utterwqlnut/utterdb/src/config"
 	"github.com/utterwqlnut/utterdb/src/node/server"
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v3"
 )
-
-type Config struct {
-	Nodes  []string `yaml:"nodes"`
-	Shards int      `yaml:"shards"`
-	Memory struct {
-		Swappiness int `yaml:"swappiness"`
-	} `yaml:"memory"`
-}
 
 func main() {
 	// Carrying out config
@@ -29,7 +22,7 @@ func main() {
 		log.Fatalf("Failed to find file")
 	}
 
-	var config Config
+	var config config.Config
 	err = yaml.Unmarshal(data, &config)
 
 	if err != nil {

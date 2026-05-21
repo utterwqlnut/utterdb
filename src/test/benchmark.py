@@ -14,7 +14,7 @@ class TCPKeyValueUser(User):
     lock = threading.Lock()
 
     def on_start(self):
-        self.host = "localhost"
+        self.host = "172.31.5.172"
         self.port = 8080
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

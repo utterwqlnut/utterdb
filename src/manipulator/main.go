@@ -2,251 +2,49 @@ package main
 
 import (
 	"bufio"
-	"context"
-	"errors"
 	"fmt"
 	"net"
 	"os"
-	"sort"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/spaolacci/murmur3"
-	"github.com/utterwqlnut/utterdb/protos"
-	pb "github.com/utterwqlnut/utterdb/protos"
-	"github.com/utterwqlnut/utterdb/src/client"
-	"google.golang.org/grpc"
+	"github.com/utterwqlnut/utterdb/src/config"
+	"github.com/utterwqlnut/utterdb/src/hashing"
 	"gopkg.in/yaml.v3"
 )
 
-type NodeConn struct {
-	client protos.NodeClient
-	conn   *grpc.ClientConn
-}
+func sendAllNodesHashRing(hR *hashing.HashRing, proxies []string) {
+	data := []byte("NEWRING" + "|" + hR.String() + "\n")
 
-type Node struct {
-	ip       string
-	name     string
-	hash     uint64
-	nodeConn NodeConn
-}
+	for _, addr := range proxies {
+		addr := addr // capture for closure
 
-type HashRing struct {
-	ring          []*Node
-	globalLock    sync.RWMutex
-	rebalanceLock sync.Mutex
-}
+		go func() {
+			for i := 0; i < 5; i++ {
+				conn, err := net.Dial("tcp", addr)
+				if err != nil {
+					time.Sleep(20 * time.Millisecond)
+					fmt.Println("ERR ", i+1, " ", err.Error())
+					continue
+				}
 
-func newHashRing(nodeNames []string) *HashRing {
-	nodes := make([]*Node, 0)
+				_, err = conn.Write(data)
+				conn.Close()
 
-	for i := 0; i < len(nodeNames); i++ {
-		nodes = append(nodes, newNode(nodeNames[i], "node_"+strconv.Itoa(i)))
-	}
-	hR := HashRing{nodes, sync.RWMutex{}, sync.Mutex{}}
-	hR.sort()
-	return &hR
-}
-
-func (hR *HashRing) sort() {
-	sort.Slice(hR.ring, func(i, j int) bool {
-		return hR.ring[i].hash < hR.ring[j].hash
-	})
-}
-
-// These 3 helper methods are NOT thread safe
-func (hR *HashRing) addNodeHelper(n *Node) (successor *Node, startHash uint64, endHash uint64) {
-	idx := sort.Search(len(hR.ring), func(i int) bool {
-		return hR.ring[i].hash >= n.hash
-	}) % len(hR.ring)
-
-	successor = hR.ring[idx]
-
-	beforeIdx := (idx - 1 + len(hR.ring)) % len(hR.ring)
-	startHash = hR.ring[beforeIdx].hash
-	endHash = n.hash
-
-	return successor, startHash, endHash
-}
-func (hR *HashRing) removeNodeHelper(n *Node) (successor *Node, startHash uint64, endHash uint64) {
-	idx := sort.Search(len(hR.ring), func(i int) bool {
-		return hR.ring[i].hash == n.hash
-	})
-
-	afterIdx := (idx + 1) % len(hR.ring)
-	successor = hR.ring[afterIdx]
-
-	beforeIdx := (idx - 1 + len(hR.ring)) % len(hR.ring)
-
-	startHash = hR.ring[beforeIdx].hash
-	endHash = n.hash // The range the dying node owned
-
-	return successor, startHash, endHash
-}
-
-func (hR *HashRing) getNode(key string) *Node {
-	keyHash := murmur3.Sum64([]byte(key))
-
-	idx := sort.Search(len(hR.ring), func(i int) bool {
-		return hR.ring[i].hash >= keyHash
-	}) % len(hR.ring)
-
-	return hR.ring[idx]
-}
-
-func newNode(ip string, name string) *Node {
-	nodeClient, conn := client.GetClient(ip)
-	return &Node{
-		ip:       ip,
-		name:     name,
-		hash:     murmur3.Sum64([]byte(name)),
-		nodeConn: NodeConn{nodeClient, conn},
+				if err != nil {
+					time.Sleep(20 * time.Millisecond)
+					fmt.Println("ERR ", i+1, " ", err.Error())
+					continue
+				} else {
+					return
+				}
+			}
+			fmt.Printf("failed to send hash ring to %s after 5 retries\n", addr)
+		}()
 	}
 }
 
-func (hR *HashRing) write(key string, keyType string, value string, valueType string) error {
-	hR.globalLock.RLock()
-	defer hR.globalLock.RUnlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	node := hR.getNode(key)
-	_, err := node.nodeConn.client.Write(ctx, &pb.Data{Key: key,
-		KeyType: keyType, Value: value, ValueType: valueType})
-
-	return err
-}
-
-func (hR *HashRing) erase(key string, keyType string) error {
-	hR.globalLock.RLock()
-	defer hR.globalLock.RUnlock()
-
-	node := hR.getNode(key)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	_, err := node.nodeConn.client.Erase(ctx, &pb.Request{Key: key,
-		Type: keyType})
-
-	return err
-}
-
-func (hR *HashRing) get(key string, keyType string) (string, error) {
-	hR.globalLock.RLock()
-	defer hR.globalLock.RUnlock()
-	node := hR.getNode(key)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	value, err := node.nodeConn.client.Get(ctx, &pb.Request{Key: key,
-		Type: keyType})
-
-	if err != nil {
-		return "", err
-	}
-
-	return value.Value, nil
-
-}
-
-func (hR *HashRing) getRam() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	returnString := ""
-
-	hR.globalLock.RLock()
-	for i := range hR.ring {
-		ramUse, _ := hR.ring[i].nodeConn.client.RamUse(ctx, &pb.Empty{})
-		returnString += strconv.FormatFloat(float64(ramUse.Value), 'e', -1, 32)
-		if i != len(hR.ring)-1 {
-			returnString += " "
-		}
-	}
-	hR.globalLock.RUnlock()
-
-	return returnString
-}
-
-func (hR *HashRing) getCpu() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	returnString := ""
-
-	hR.globalLock.RLock()
-	for i := range hR.ring {
-		cpuUse, _ := hR.ring[i].nodeConn.client.CpuUse(ctx, &pb.Empty{})
-		returnString += strconv.FormatFloat(float64(cpuUse.Value), 'e', -1, 32)
-		if i != len(hR.ring)-1 {
-			returnString += " "
-		}
-	}
-	hR.globalLock.RUnlock()
-
-	return returnString
-}
-
-func (hR *HashRing) addNode(ip string) error {
-	hR.rebalanceLock.Lock()
-	defer hR.rebalanceLock.Unlock()
-	node := newNode(ip, "node_"+strconv.Itoa(len(hR.ring)))
-
-	nodeBefore, start, end := hR.addNodeHelper(node)
-	ctx := context.Background()
-	_, err := node.nodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: nodeBefore.ip})
-
-	if err != nil {
-		return err
-	}
-	fmt.Println("Got to here")
-	hR.globalLock.Lock()
-	hR.ring = append(hR.ring, node)
-	hR.sort()
-	hR.globalLock.Unlock()
-
-	nodeBefore.nodeConn.client.ClearOldData(ctx, &pb.Range{Start: start, End: end})
-
-	return nil
-}
-
-func (hR *HashRing) removeNode(ip string) error {
-	hR.rebalanceLock.Lock()
-	defer hR.rebalanceLock.Unlock()
-
-	found := false
-	var idx int
-	for i := range hR.ring {
-		if hR.ring[i].ip == ip {
-			found = true
-			idx = i
-			break
-		}
-	}
-
-	if !found {
-		return errors.New("IP not found")
-	}
-
-	nodeBefore, start, end := hR.removeNodeHelper(hR.ring[idx])
-	ctx := context.Background()
-	_, err := nodeBefore.nodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: hR.ring[idx].ip})
-
-	if err != nil {
-		return err
-	}
-
-	hR.globalLock.Lock()
-	hR.ring = append(hR.ring[:idx], hR.ring[idx+1:]...)
-	hR.sort()
-	hR.globalLock.Unlock()
-
-	return nil
-}
-
-func (hR *HashRing) handleTcp(conn net.Conn) {
+func handleTcp(hR *hashing.HashRing, conn net.Conn, proxies []string) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 
@@ -267,52 +65,18 @@ func (hR *HashRing) handleTcp(conn net.Conn) {
 
 		switch cmd[0] {
 
-		case "WRITE":
-			if len(cmd) != 5 {
-				conn.Write([]byte("ERR invalid Write command\n"))
-				continue
-			}
-			err := hR.write(cmd[1], cmd[2], cmd[3], cmd[4])
-			if err != nil {
-				conn.Write([]byte("ERR " + err.Error() + "\n"))
-				continue
-			}
-			conn.Write([]byte("OK\n"))
-
-		case "GET":
-			if len(cmd) != 3 {
-				conn.Write([]byte("ERR invalid Get command\n"))
-				continue
-			}
-			value, err := hR.get(cmd[1], cmd[2])
-			if err != nil {
-				conn.Write([]byte("ERR " + err.Error() + "\n"))
-				continue
-			}
-			conn.Write([]byte(value + "\n"))
-
-		case "ERASE":
-			if len(cmd) != 3 {
-				conn.Write([]byte("ERR invalid Erase command\n"))
-				continue
-			}
-			err := hR.erase(cmd[1], cmd[2])
-			if err != nil {
-				conn.Write([]byte("ERR " + err.Error() + "\n"))
-				continue
-			}
-			conn.Write([]byte("OK\n"))
-
 		case "ADDNODE":
+			fmt.Println("Recieved")
 			if len(cmd) != 2 {
 				conn.Write([]byte("ERR invalid Add Node command\n"))
 				continue
 			}
-			err := hR.addNode(cmd[1])
+			err := hR.AddNode(cmd[1])
 			if err != nil {
 				conn.Write([]byte("ERR " + err.Error() + "\n"))
 				continue
 			}
+			go sendAllNodesHashRing(hR, proxies)
 			conn.Write([]byte("OK\n"))
 
 		case "REMOVENODE":
@@ -320,41 +84,18 @@ func (hR *HashRing) handleTcp(conn net.Conn) {
 				conn.Write([]byte("ERR invalid Remove Node command\n"))
 				continue
 			}
-			err := hR.removeNode(cmd[1])
+			err := hR.RemoveNode(cmd[1])
 			if err != nil {
 				conn.Write([]byte("ERR " + err.Error() + "\n"))
 				continue
 			}
+			go sendAllNodesHashRing(hR, proxies)
 			conn.Write([]byte("OK\n"))
-
-		case "GETRAM":
-			if len(cmd) != 1 {
-				conn.Write([]byte("ERR invalid Get Ram command\n"))
-				continue
-			}
-			value := hR.getRam()
-			conn.Write([]byte(value + "\n"))
-
-		case "GETCPU":
-			if len(cmd) != 1 {
-				conn.Write([]byte("ERR invalid Get Cpu command\n"))
-				continue
-			}
-			value := hR.getCpu()
-			conn.Write([]byte(value + "\n"))
 
 		default:
 			conn.Write([]byte("ERR unknown command\n"))
 		}
 	}
-}
-
-type Config struct {
-	Nodes  []string `yaml:"nodes"`
-	Shards int      `yaml:"shards"`
-	Memory struct {
-		Swappiness int `yaml:"swappiness"`
-	} `yaml:"memory"`
 }
 
 func main() {
@@ -363,15 +104,16 @@ func main() {
 		panic(err)
 	}
 
-	var cfg Config
+	var cfg config.Config
 	err = yaml.Unmarshal(data, &cfg)
-	hashRing := newHashRing(cfg.Nodes)
+	hashRing := hashing.NewHashRing(cfg.Nodes)
 
-	for i := range hashRing.ring {
-		defer hashRing.ring[i].nodeConn.conn.Close()
+	for i := range hashRing.Ring {
+		defer hashRing.Ring[i].NodeConn.Conn.Close()
 	}
 
-	lis, err := net.Listen("tcp", ":8080")
+	args := os.Args
+	lis, err := net.Listen("tcp", args[1])
 	if err != nil {
 		panic(err)
 	}
@@ -383,6 +125,6 @@ func main() {
 		if err != nil {
 			continue
 		}
-		go hashRing.handleTcp(conn)
+		go handleTcp(hashRing, conn, cfg.Proxies)
 	}
 }
