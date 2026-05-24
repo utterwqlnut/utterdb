@@ -15,7 +15,7 @@ nlb_port = data.get("nlb_port", 9000)
 # FIX: split IP:PORT safely for HAProxy
 def format_backend(addr):
     ip, port = addr.split(":")
-    return f"server {ip.replace('.', '_')} {ip} port {port} check"
+    return f"server {ip.replace('.', '_')} {ip} port {port}"
 
 
 backend_block = "\n".join([f"    {format_backend(addr)}" for addr in backends])
