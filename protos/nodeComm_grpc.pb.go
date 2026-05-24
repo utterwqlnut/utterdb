@@ -27,6 +27,7 @@ const (
 	Node_InitiateMove_FullMethodName = "/protos.Node/InitiateMove"
 	Node_ClearOldData_FullMethodName = "/protos.Node/ClearOldData"
 	Node_MoveData_FullMethodName     = "/protos.Node/MoveData"
+	Node_Health_FullMethodName       = "/protos.Node/Health"
 )
 
 // NodeClient is the client API for Node service.
@@ -41,6 +42,7 @@ type NodeClient interface {
 	InitiateMove(ctx context.Context, in *Rebalance, opts ...grpc.CallOption) (*Empty, error)
 	ClearOldData(ctx context.Context, in *Range, opts ...grpc.CallOption) (*Empty, error)
 	MoveData(ctx context.Context, in *DataStreamReq, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Data], error)
+	Health(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
 }
 
 type nodeClient struct {
@@ -140,6 +142,16 @@ func (c *nodeClient) MoveData(ctx context.Context, in *DataStreamReq, opts ...gr
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Node_MoveDataClient = grpc.ServerStreamingClient[Data]
 
+func (c *nodeClient) Health(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, Node_Health_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeServer is the server API for Node service.
 // All implementations must embed UnimplementedNodeServer
 // for forward compatibility.
@@ -152,6 +164,7 @@ type NodeServer interface {
 	InitiateMove(context.Context, *Rebalance) (*Empty, error)
 	ClearOldData(context.Context, *Range) (*Empty, error)
 	MoveData(*DataStreamReq, grpc.ServerStreamingServer[Data]) error
+	Health(context.Context, *Empty) (*Empty, error)
 	mustEmbedUnimplementedNodeServer()
 }
 
@@ -185,6 +198,9 @@ func (UnimplementedNodeServer) ClearOldData(context.Context, *Range) (*Empty, er
 }
 func (UnimplementedNodeServer) MoveData(*DataStreamReq, grpc.ServerStreamingServer[Data]) error {
 	return status.Error(codes.Unimplemented, "method MoveData not implemented")
+}
+func (UnimplementedNodeServer) Health(context.Context, *Empty) (*Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Health not implemented")
 }
 func (UnimplementedNodeServer) mustEmbedUnimplementedNodeServer() {}
 func (UnimplementedNodeServer) testEmbeddedByValue()              {}
@@ -344,6 +360,24 @@ func _Node_MoveData_Handler(srv interface{}, stream grpc.ServerStream) error {
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Node_MoveDataServer = grpc.ServerStreamingServer[Data]
 
+func _Node_Health_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).Health(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Node_Health_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).Health(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Node_ServiceDesc is the grpc.ServiceDesc for Node service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -378,6 +412,10 @@ var Node_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClearOldData",
 			Handler:    _Node_ClearOldData_Handler,
+		},
+		{
+			MethodName: "Health",
+			Handler:    _Node_Health_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

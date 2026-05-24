@@ -3,6 +3,7 @@ package hashing
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -95,7 +96,7 @@ func (hR *HashRing) AddNodeHelper(n *Node) (successor *Node, startHash uint64, e
 }
 func (hR *HashRing) RemoveNodeHelper(n *Node) (successor *Node, startHash uint64, endHash uint64) {
 	idx := sort.Search(len(hR.Ring), func(i int) bool {
-		return hR.Ring[i].hash == n.hash
+		return hR.Ring[i].hash >= n.hash
 	})
 
 	afterIdx := (idx + 1) % len(hR.Ring)
@@ -254,16 +255,45 @@ func (hR *HashRing) RemoveNode(ip string) error {
 
 	nodeBefore, start, end := hR.RemoveNodeHelper(hR.Ring[idx])
 	ctx := context.Background()
-	_, err := nodeBefore.NodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: hR.Ring[idx].ip})
-
-	if err != nil {
-		return err
-	}
+	nodeBefore.NodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: hR.Ring[idx].ip})
 
 	hR.globalLock.Lock()
+	fmt.Println(hR.Ring[0].name)
 	hR.Ring = append(hR.Ring[:idx], hR.Ring[idx+1:]...)
+	fmt.Println(hR.Ring[0].name)
 	hR.Sort()
 	hR.globalLock.Unlock()
-
+	fmt.Println()
 	return nil
+}
+
+func (hR *HashRing) HeartBeat(proxies []string, fails map[string]int) {
+	toBeDeleted := make([]string, 0)
+	hR.globalLock.RLock()
+	for _, node := range hR.Ring {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_, err := node.NodeConn.client.Health(ctx, &pb.Empty{})
+
+		if err != nil {
+			fails[node.name] += 1
+		} else {
+			fmt.Println("HeartBeat for node ", node.name, " ALLG")
+			fails[node.name] = 0
+		}
+
+		if fails[node.name] >= 1 {
+			toBeDeleted = append(toBeDeleted, node.ip)
+		}
+		cancel()
+	}
+	hR.globalLock.RUnlock()
+
+	for _, ip := range toBeDeleted {
+		hR.RemoveNode(ip)
+		fmt.Println(hR.Ring[0].name)
+		if len(hR.Ring) > 1 {
+			fmt.Println(hR.Ring[1].name)
+		}
+		time.Sleep(5 * time.Second) // Make sure deletion is fully done
+	}
 }

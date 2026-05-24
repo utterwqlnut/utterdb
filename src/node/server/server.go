@@ -28,6 +28,9 @@ func NewNodeServer(shards int, ip string) *Server {
 		migrateLock: sync.RWMutex{},
 	}
 }
+func (s *Server) Health(ctx context.Context, _ *pb.Empty) (*pb.Empty, error) {
+	return &pb.Empty{}, nil
+}
 
 func (s *Server) Get(ctx context.Context, rq *pb.Request) (*pb.Value, error) {
 	key, err1 := ParseToStringable(rq.Key, rq.Type)

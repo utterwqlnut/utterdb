@@ -3,7 +3,6 @@ nodes:
   - localhost:8001
 proxies:
   - localhost:8002
-  - localhost:8003
 manipulator: localhost:8080
 shards: 128
 memory:

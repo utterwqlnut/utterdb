@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/robfig/cron/v3"
 	"github.com/utterwqlnut/utterdb/src/config"
 	"github.com/utterwqlnut/utterdb/src/hashing"
 	"gopkg.in/yaml.v3"
@@ -111,6 +112,13 @@ func main() {
 	for i := range hashRing.Ring {
 		defer hashRing.Ring[i].NodeConn.Conn.Close()
 	}
+
+	fails := make(map[string]int)
+
+	c := cron.New()
+	c.AddFunc("@every 5m", func() { hashRing.HeartBeat(cfg.Proxies, fails) })
+	c.AddFunc("@every 5m", func() { sendAllNodesHashRing(hashRing, cfg.Proxies) })
+	c.Start()
 
 	args := os.Args
 	lis, err := net.Listen("tcp", args[1])

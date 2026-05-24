@@ -12,6 +12,7 @@ service Node {
   rpc InitiateMove(Rebalance) returns (Empty) {}
   rpc ClearOldData(Range) returns (Empty) {}
   rpc MoveData(DataStreamReq) returns (stream Data) {}
+  rpc Health(Empty) returns (Empty) {}
 }
 
 message Request {

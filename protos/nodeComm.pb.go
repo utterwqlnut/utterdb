@@ -465,7 +465,7 @@ const file_protos_nodeComm_proto_rawDesc = "" +
 	"\rDataStreamReq\x12\x14\n" +
 	"\x05start\x18\x01 \x01(\x04R\x05start\x12\x10\n" +
 	"\x03end\x18\x02 \x01(\x04R\x03end\x12\x1a\n" +
-	"\bsourceIp\x18\x03 \x01(\tR\bsourceIp2\xef\x02\n" +
+	"\bsourceIp\x18\x03 \x01(\tR\bsourceIp2\x99\x03\n" +
 	"\x04Node\x12'\n" +
 	"\x03Get\x12\x0f.protos.Request\x1a\r.protos.Value\"\x00\x12)\n" +
 	"\x05Erase\x12\x0f.protos.Request\x1a\r.protos.Empty\"\x00\x12(\n" +
@@ -474,7 +474,8 @@ const file_protos_nodeComm_proto_rawDesc = "" +
 	"\x05Write\x12\f.protos.Data\x1a\r.protos.Empty\"\x00\x122\n" +
 	"\fInitiateMove\x12\x11.protos.Rebalance\x1a\r.protos.Empty\"\x00\x12.\n" +
 	"\fClearOldData\x12\r.protos.Range\x1a\r.protos.Empty\"\x00\x123\n" +
-	"\bMoveData\x12\x15.protos.DataStreamReq\x1a\f.protos.Data\"\x000\x01B'Z%github.com/utterwqlnut/utterdb/protosb\x06proto3"
+	"\bMoveData\x12\x15.protos.DataStreamReq\x1a\f.protos.Data\"\x000\x01\x12(\n" +
+	"\x06Health\x12\r.protos.Empty\x1a\r.protos.Empty\"\x00B'Z%github.com/utterwqlnut/utterdb/protosb\x06proto3"
 
 var (
 	file_protos_nodeComm_proto_rawDescOnce sync.Once
@@ -508,16 +509,18 @@ var file_protos_nodeComm_proto_depIdxs = []int32{
 	5, // 5: protos.Node.InitiateMove:input_type -> protos.Rebalance
 	6, // 6: protos.Node.ClearOldData:input_type -> protos.Range
 	7, // 7: protos.Node.MoveData:input_type -> protos.DataStreamReq
-	2, // 8: protos.Node.Get:output_type -> protos.Value
-	3, // 9: protos.Node.Erase:output_type -> protos.Empty
-	1, // 10: protos.Node.RamUse:output_type -> protos.Float
-	1, // 11: protos.Node.CpuUse:output_type -> protos.Float
-	3, // 12: protos.Node.Write:output_type -> protos.Empty
-	3, // 13: protos.Node.InitiateMove:output_type -> protos.Empty
-	3, // 14: protos.Node.ClearOldData:output_type -> protos.Empty
-	4, // 15: protos.Node.MoveData:output_type -> protos.Data
-	8, // [8:16] is the sub-list for method output_type
-	0, // [0:8] is the sub-list for method input_type
+	3, // 8: protos.Node.Health:input_type -> protos.Empty
+	2, // 9: protos.Node.Get:output_type -> protos.Value
+	3, // 10: protos.Node.Erase:output_type -> protos.Empty
+	1, // 11: protos.Node.RamUse:output_type -> protos.Float
+	1, // 12: protos.Node.CpuUse:output_type -> protos.Float
+	3, // 13: protos.Node.Write:output_type -> protos.Empty
+	3, // 14: protos.Node.InitiateMove:output_type -> protos.Empty
+	3, // 15: protos.Node.ClearOldData:output_type -> protos.Empty
+	4, // 16: protos.Node.MoveData:output_type -> protos.Data
+	3, // 17: protos.Node.Health:output_type -> protos.Empty
+	9, // [9:18] is the sub-list for method output_type
+	0, // [0:9] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name

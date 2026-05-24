@@ -1,9 +1,53 @@
 import os
+import subprocess
 
 import yaml
+
+CONFIG_PATH = "/etc/haproxy/haproxy.cfg"
 
 with open("config.yaml", "r") as f:
     data = yaml.safe_load(f)
 
-for ip in data["proxies"]:
-    os.system("ipvsadm -A -t localhost:8080 -r " + ip + " -m")
+backends = data["proxies"]
+
+
+# FIX: split IP:PORT safely for HAProxy
+def format_backend(addr):
+    ip, port = addr.split(":")
+    return f"server {ip.replace('.', '_')} {ip} port {port} check"
+
+
+backend_block = "\n".join([f"    {format_backend(addr)}" for addr in backends])
+
+haproxy_conf = f"""
+global
+    daemon
+    maxconn 4096
+
+defaults
+    mode tcp
+    timeout connect 5s
+    timeout client  1m
+    timeout server  1m
+
+frontend tcp_in
+    bind *:8080
+    default_backend tcp_backends
+
+backend tcp_backends
+    balance roundrobin
+{backend_block}
+"""
+
+os.makedirs("/etc/haproxy", exist_ok=True)
+
+with open(CONFIG_PATH, "w") as f:
+    f.write(haproxy_conf)
+
+# validate
+subprocess.run(["haproxy", "-c", "-f", CONFIG_PATH], check=True)
+
+# reload
+subprocess.run(["systemctl", "reload", "haproxy"], check=True)
+
+print("HAProxy TCP load balancer updated successfully")
