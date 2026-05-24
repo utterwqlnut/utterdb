@@ -9,6 +9,7 @@ with open("config.yaml", "r") as f:
     data = yaml.safe_load(f)
 
 backends = data["proxies"]
+nlb_port = data.get("nlb_port", 9000)
 
 
 # FIX: split IP:PORT safely for HAProxy
@@ -31,7 +32,7 @@ defaults
     timeout server  1m
 
 frontend tcp_in
-    bind *:8080
+    bind *:{nlb_port}
     default_backend tcp_backends
 
 backend tcp_backends
