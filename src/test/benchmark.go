@@ -141,17 +141,23 @@ func (w *worker) reconnect() error {
 
 // sendCmd sends a newline-terminated command and reads one line back.
 // Returns (response, latencyµs, error).
+// Timer starts immediately before the write syscall and stops immediately
+// after the last byte of the response is read — pure network RTT.
 func (w *worker) sendCmd(cmd string) (string, int64, error) {
-	start := time.Now()
+	// Set deadline before starting the clock so it doesn't skew latency
 	w.conn.SetDeadline(time.Now().Add(2 * time.Second))
 
+	// Clock starts here — right before bytes hit the wire
+	start := time.Now()
 	_, err := fmt.Fprintf(w.conn, "%s\n", cmd)
 	if err != nil {
-		return "", 0, err
+		return "", time.Since(start).Microseconds(), err
 	}
 
 	resp, err := w.reader.ReadString('\n')
+	// Clock stops here — right after last byte of response is received
 	latUS := time.Since(start).Microseconds()
+
 	if err != nil {
 		return "", latUS, err
 	}
@@ -322,11 +328,12 @@ func main() {
 loop:
 	for {
 		select {
-		case t := <-ticker.C:
+		case <-ticker.C:
+			now := time.Now()
 			lats, fails := cur.drain()
-			elapsed := t.Sub(intervalStart)
-			intervalStart = t
-			printStats(t.Format("15:04:05"), elapsed, lats, fails)
+			elapsed := now.Sub(intervalStart)
+			intervalStart = now
+			printStats(now.Format("15:04:05"), elapsed, lats, fails)
 
 		case <-testEnd:
 			break loop

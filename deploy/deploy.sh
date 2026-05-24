@@ -26,7 +26,12 @@ TF_DIR="$SCRIPT_DIR/terraform"
 SSH_KEY="${HOME}/.ssh/id_ed25519"
 NODE_COUNT=2
 PROXY_COUNT=1
-INSTANCE_TYPE="t3.micro"
+INSTANCE_TYPE="t3.micro"             # nodes + proxies + manipulator
+NLB_INSTANCE_TYPE="m7a.xlarge"       # NLB
+BENCHMARK_INSTANCE_TYPE="m7a.xlarge" # benchmark runner
+BENCH_WORKERS=50
+BENCH_DURATION=60s
+BENCH_SEED=500
 SSH_USER="ec2-user"
 NODE_BASE_PORT=8000
 PROXY_BASE_PORT=8100
@@ -36,10 +41,15 @@ NLB_PORT=9000
 # ── Argument parsing ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --key)     SSH_KEY="$2";       shift 2 ;;
-    --nodes)   NODE_COUNT="$2";    shift 2 ;;
-    --proxies) PROXY_COUNT="$2";   shift 2 ;;
-    --type)    INSTANCE_TYPE="$2"; shift 2 ;;
+    --key)             SSH_KEY="$2";                  shift 2 ;;
+    --nodes)           NODE_COUNT="$2";               shift 2 ;;
+    --proxies)         PROXY_COUNT="$2";              shift 2 ;;
+    --type)            INSTANCE_TYPE="$2";            shift 2 ;;
+    --nlb-type)        NLB_INSTANCE_TYPE="$2";        shift 2 ;;
+    --benchmark-type)  BENCHMARK_INSTANCE_TYPE="$2";  shift 2 ;;
+    --workers)         BENCH_WORKERS="$2";            shift 2 ;;
+    --duration)        BENCH_DURATION="$2";           shift 2 ;;
+    --seed)            BENCH_SEED="$2";               shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -80,6 +90,8 @@ terraform apply -auto-approve \
   -var="node_count=${NODE_COUNT}" \
   -var="proxy_count=${PROXY_COUNT}" \
   -var="instance_type=${INSTANCE_TYPE}" \
+  -var="nlb_instance_type=${NLB_INSTANCE_TYPE}" \
+  -var="benchmark_instance_type=${BENCHMARK_INSTANCE_TYPE}" \
   -var="public_key_path=${PUBLIC_KEY_PATH}"
 
 # ── 2. Collect IPs ────────────────────────────────────────────────────────────
@@ -204,9 +216,9 @@ printf " Benchmark    : %s\n" "$BENCHMARK_PUB"
 echo ""
 echo "To SSH into the benchmark instance and run the load test:"
 echo "  ssh -i $SSH_KEY ${SSH_USER}@${BENCHMARK_PUB}"
-echo "  sudo bash /opt/utterdb/deploy/scripts/start_benchmark.sh ${NLB_PRIV} ${NLB_PORT}"
+echo "  sudo bash /opt/utterdb/deploy/scripts/start_benchmark.sh ${NLB_PRIV} ${NLB_PORT} ${BENCH_WORKERS} ${BENCH_DURATION} ${BENCH_SEED}"
 echo ""
 echo "Or run it directly from here:"
 echo "  ssh -i $SSH_KEY ${SSH_USER}@${BENCHMARK_PUB} \\"
-echo "    sudo bash /opt/utterdb/deploy/scripts/start_benchmark.sh ${NLB_PRIV} ${NLB_PORT} 50 60s 500"
+echo "    sudo bash /opt/utterdb/deploy/scripts/start_benchmark.sh ${NLB_PRIV} ${NLB_PORT} ${BENCH_WORKERS} ${BENCH_DURATION} ${BENCH_SEED}"
 echo "========================================="

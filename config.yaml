@@ -1,9 +1,16 @@
 nodes:
-  - localhost:8000
-  - localhost:8001
+  - 172.31.3.145:8000
+  - 172.31.13.79:8001
+  - 172.31.0.228:8002
+  - 172.31.3.57:8003
 proxies:
-  - localhost:8100
-manipulator: localhost:8080
+  - 172.31.0.9:8100
+  - 172.31.7.95:8101
+  - 172.31.0.36:8102
+  - 172.31.9.8:8103
+manipulator: 172.31.2.214:8080
+nlb_port: 9000
 shards: 128
 memory:
   swappiness: 0
+

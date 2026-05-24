@@ -10,6 +10,29 @@ export PATH=$PATH:/usr/local/go/bin:/root/go/bin
 
 cd "$APP_DIR"
 
+# Wait for all data nodes listed in config.yaml to be reachable
+# before starting the proxy so gRPC connections succeed at startup
+echo "Waiting for data nodes to be reachable..."
+python3 - <<'PYEOF'
+import yaml, socket, time, sys
+
+with open("config.yaml") as f:
+    cfg = yaml.safe_load(f)
+
+for addr in cfg.get("nodes", []):
+    host, port = addr.rsplit(":", 1)
+    for attempt in range(30):
+        try:
+            s = socket.create_connection((host, int(port)), timeout=2)
+            s.close()
+            print(f"  {addr} ready")
+            break
+        except OSError:
+            if attempt == 29:
+                print(f"  {addr} TIMEOUT - proceeding anyway")
+            time.sleep(2)
+PYEOF
+
 # Build
 go build -o bin/proxy ./src/proxy/main.go
 

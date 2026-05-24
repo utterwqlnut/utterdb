@@ -5,7 +5,24 @@ variable "aws_region" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type for all instances"
+  description = "EC2 instance type for data nodes and proxies"
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "nlb_instance_type" {
+  description = "EC2 instance type for the NLB (HAProxy) instance"
+  type        = string
+  default     = "m7a.xlarge"
+}
+
+variable "benchmark_instance_type" {
+  description = "EC2 instance type for the benchmark runner"
+  type        = string
+  default     = "m7a.xlarge"
+}
+variable "manipulator_instance_type" {
+  description = "EC2 instance type for the manipulator"
   type        = string
   default     = "t3.micro"
 }

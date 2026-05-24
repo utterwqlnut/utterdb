@@ -89,7 +89,7 @@ data "aws_ami" "al2023" {
 # ── Manipulator (singleton) ───────────────────────────────────────────────────
 resource "aws_instance" "manipulator" {
   ami                    = data.aws_ami.al2023.id
-  instance_type          = var.instance_type
+  instance_type          = var.manipulator_instance_type
   key_name               = aws_key_pair.utterdb.key_name
   vpc_security_group_ids = [aws_security_group.utterdb.id]
 
@@ -121,7 +121,7 @@ resource "aws_instance" "proxy" {
 # ── NLB / HAProxy (singleton) ─────────────────────────────────────────────────
 resource "aws_instance" "nlb" {
   ami                    = data.aws_ami.al2023.id
-  instance_type          = var.instance_type
+  instance_type          = var.nlb_instance_type
   key_name               = aws_key_pair.utterdb.key_name
   vpc_security_group_ids = [aws_security_group.utterdb.id]
 
@@ -131,7 +131,7 @@ resource "aws_instance" "nlb" {
 # ── Benchmark runner (same subnet, hits NLB via private IP) ───────────────────
 resource "aws_instance" "benchmark" {
   ami                    = data.aws_ami.al2023.id
-  instance_type          = var.instance_type
+  instance_type          = var.benchmark_instance_type
   key_name               = aws_key_pair.utterdb.key_name
   vpc_security_group_ids = [aws_security_group.utterdb.id]
 
