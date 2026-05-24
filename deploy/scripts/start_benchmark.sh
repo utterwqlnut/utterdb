@@ -31,4 +31,4 @@ locust -f src/test/benchmark.py \
   -u "$USERS" \
   -r "$SPAWN_RATE" \
   --run-time "$DURATION" \
-  --only-summary
+  --processes -1

@@ -1,3 +1,31 @@
+# Local .terraform directory and lock file
+.terraform/
+.terraform.lock.hcl
+
+# State files (may contain secrets/IPs — never commit)
 *.tfstate
-*.hcl
-*.terraform
+*.tfstate.*
+*.tfstate.backup
+
+# Crash log
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Plan files (can contain sensitive data)
+*.tfplan
+*.plan
+
+# Variable files that may contain secrets
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+# CLI config
+.terraformrc
+terraform.rc
