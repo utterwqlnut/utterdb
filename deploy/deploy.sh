@@ -15,6 +15,7 @@
 #   3. Wait for SSH on every instance
 #   4. Bootstrap every instance: git clone + write config.yaml
 #   5. Start services in order: nodes → manipulator → proxies → NLB
+#   6. Run benchmark from the benchmark instance (same subnet → private NLB IP)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -93,6 +94,9 @@ PROXY_PUB_IPS=($(terraform output -json proxy_public_ips  | jq -r '.[]'))
 PROXY_PRIV_IPS=($(terraform output -json proxy_private_ips | jq -r '.[]'))
 
 NLB_PUB=$(terraform output -raw nlb_public_ip)
+NLB_PRIV=$(terraform output -raw nlb_private_ip)
+
+BENCHMARK_PUB=$(terraform output -raw benchmark_public_ip)
 
 cd "$REPO_ROOT"
 
@@ -122,7 +126,7 @@ memory:
 echo "Generated config.yaml:"
 echo "$CONFIG_YAML"
 
-# Also update the local config.yaml so it reflects the deployed cluster
+# Update local config.yaml so it reflects the deployed cluster
 echo "$CONFIG_YAML" > "$REPO_ROOT/config.yaml"
 echo "  Local config.yaml updated."
 
@@ -131,7 +135,7 @@ CONFIG_B64=$(echo "$CONFIG_YAML" | base64)
 
 # ── 4. Wait for SSH ───────────────────────────────────────────────────────────
 echo "==> Waiting for instances to become reachable..."
-ALL_PUB_IPS=("$MANIPULATOR_PUB" "${NODE_PUB_IPS[@]}" "${PROXY_PUB_IPS[@]}" "$NLB_PUB")
+ALL_PUB_IPS=("$MANIPULATOR_PUB" "${NODE_PUB_IPS[@]}" "${PROXY_PUB_IPS[@]}" "$NLB_PUB" "$BENCHMARK_PUB")
 for ip in "${ALL_PUB_IPS[@]}"; do
   wait_for_ssh "$ip"
 done
@@ -195,7 +199,13 @@ for i in "${!PROXY_PUB_IPS[@]}"; do
   printf " Proxy %-2s     : %s:%s\n" "$i" "${PROXY_PUB_IPS[$i]}" "$(( PROXY_BASE_PORT + i ))"
 done
 printf " NLB          : %s:%s\n" "$NLB_PUB" "$NLB_PORT"
+printf " Benchmark    : %s\n" "$BENCHMARK_PUB"
 echo ""
-echo "Run the load test against the NLB:"
-echo "  go run src/test/benchmark.go --host ${NLB_PUB} --port ${NLB_PORT}"
+echo "To SSH into the benchmark instance and run the load test:"
+echo "  ssh -i $SSH_KEY ${SSH_USER}@${BENCHMARK_PUB}"
+echo "  sudo bash /opt/utterdb/deploy/scripts/start_benchmark.sh ${NLB_PRIV} ${NLB_PORT}"
+echo ""
+echo "Or run it directly from here:"
+echo "  ssh -i $SSH_KEY ${SSH_USER}@${BENCHMARK_PUB} \\"
+echo "    sudo bash /opt/utterdb/deploy/scripts/start_benchmark.sh ${NLB_PRIV} ${NLB_PORT} 50 60s 500"
 echo "========================================="

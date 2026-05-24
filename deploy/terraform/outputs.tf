@@ -37,3 +37,13 @@ output "nlb_private_ip" {
   description = "Private IP of the NLB instance"
   value       = aws_instance.nlb.private_ip
 }
+
+output "benchmark_public_ip" {
+  description = "Public IP of the benchmark instance (SSH in to run the load test)"
+  value       = aws_instance.benchmark.public_ip
+}
+
+output "benchmark_private_ip" {
+  description = "Private IP of the benchmark instance"
+  value       = aws_instance.benchmark.private_ip
+}

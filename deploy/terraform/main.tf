@@ -127,3 +127,13 @@ resource "aws_instance" "nlb" {
 
   tags = { Name = "utterdb-nlb" }
 }
+
+# ── Benchmark runner (same subnet, hits NLB via private IP) ───────────────────
+resource "aws_instance" "benchmark" {
+  ami                    = data.aws_ami.al2023.id
+  instance_type          = var.instance_type
+  key_name               = aws_key_pair.utterdb.key_name
+  vpc_security_group_ids = [aws_security_group.utterdb.id]
+
+  tags = { Name = "utterdb-benchmark" }
+}

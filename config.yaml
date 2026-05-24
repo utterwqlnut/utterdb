@@ -1,10 +1,9 @@
 nodes:
-  - 172.31.4.5:8000
-  - 172.31.8.52:8001
+  - localhost:8000
+  - localhost:8001
 proxies:
-  - 172.31.4.18:8100
-manipulator: 172.31.4.102:8080
+  - localhost:8100
+manipulator: localhost:8080
 shards: 128
 memory:
   swappiness: 0
-

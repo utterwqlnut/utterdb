@@ -47,7 +47,8 @@ with open(CONFIG_PATH, "w") as f:
 # validate
 subprocess.run(["haproxy", "-c", "-f", CONFIG_PATH], check=True)
 
-# reload
-subprocess.run(["systemctl", "reload", "haproxy"], check=True)
+# enable + restart (works whether haproxy was previously running or not)
+subprocess.run(["systemctl", "enable", "haproxy"], check=True)
+subprocess.run(["systemctl", "restart", "haproxy"], check=True)
 
 print("HAProxy TCP load balancer updated successfully")
