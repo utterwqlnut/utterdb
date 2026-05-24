@@ -5,8 +5,7 @@ set -euo pipefail
 APP_DIR=/opt/utterdb
 
 dnf install -y -q haproxy python3 python3-pip
-python3 -m pip install -q --upgrade pip
-python3 -m pip install -q --break-system-packages pyyaml
+python3 -m pip install -q --ignore-installed pyyaml
 
 cd "$APP_DIR"
 python3 src/nlb/nlb.py
