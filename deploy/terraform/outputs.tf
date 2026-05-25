@@ -28,22 +28,32 @@ output "proxy_private_ips" {
   value       = aws_instance.proxy[*].private_ip
 }
 
-output "nlb_public_ip" {
-  description = "Public IP of the NLB (HAProxy) instance — send load-test traffic here"
-  value       = aws_instance.nlb.public_ip
+output "nlb_dns_name" {
+  description = "DNS name of the AWS Network Load Balancer"
+  value       = aws_lb.nlb.dns_name
 }
 
-output "nlb_private_ip" {
-  description = "Private IP of the NLB instance"
-  value       = aws_instance.nlb.private_ip
+output "nlb_zone_id" {
+  description = "Route 53 hosted zone ID of the AWS Network Load Balancer"
+  value       = aws_lb.nlb.zone_id
 }
 
 output "benchmark_public_ip" {
-  description = "Public IP of the benchmark instance (SSH in to run the load test)"
-  value       = aws_instance.benchmark.public_ip
+  description = "Public IP of the first Locust benchmark node"
+  value       = aws_instance.benchmark[0].public_ip
+}
+
+output "benchmark_public_ips" {
+  description = "Public IPs of Locust benchmark nodes"
+  value       = aws_instance.benchmark[*].public_ip
 }
 
 output "benchmark_private_ip" {
-  description = "Private IP of the benchmark instance"
-  value       = aws_instance.benchmark.private_ip
+  description = "Private IP of the first Locust benchmark node"
+  value       = aws_instance.benchmark[0].private_ip
+}
+
+output "benchmark_private_ips" {
+  description = "Private IPs of Locust benchmark nodes"
+  value       = aws_instance.benchmark[*].private_ip
 }

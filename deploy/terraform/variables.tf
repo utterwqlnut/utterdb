@@ -11,16 +11,28 @@ variable "instance_type" {
 }
 
 variable "nlb_instance_type" {
-  description = "EC2 instance type for the NLB (HAProxy) instance"
+  description = "Deprecated; AWS NLB is managed and no EC2 instance is created"
   type        = string
   default     = "m7a.xlarge"
 }
 
 variable "benchmark_instance_type" {
-  description = "EC2 instance type for the benchmark runner"
+  description = "EC2 instance type for Locust benchmark nodes"
   type        = string
   default     = "m7a.xlarge"
 }
+
+variable "benchmark_count" {
+  description = "Number of Locust benchmark nodes to provision; one node is the master when count is greater than one"
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.benchmark_count >= 1
+    error_message = "benchmark_count must be at least 1."
+  }
+}
+
 variable "manipulator_instance_type" {
   description = "EC2 instance type for the manipulator"
   type        = string
@@ -76,7 +88,7 @@ variable "manipulator_port" {
 }
 
 variable "nlb_port" {
-  description = "Port HAProxy (NLB) listens on for client traffic"
+  description = "Port the AWS Network Load Balancer listens on for client traffic"
   type        = number
   default     = 9000
 }

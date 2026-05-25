@@ -7,15 +7,15 @@
 #   - AWS credentials in environment or active SSO session
 #
 # Usage:
-#   ./deploy/deploy.sh [--key ~/.ssh/id_rsa] [--nodes 3] [--proxies 2] [--type t3.small]
+#   ./deploy/deploy.sh [--key ~/.ssh/id_rsa] [--nodes 3] [--proxies 2] [--benchmark-nodes 3] [--type t3.small]
 #
 # Flow:
-#   1. terraform apply  — provision instances
+#   1. terraform apply  — provision instances + AWS NLB
 #   2. Generate config.yaml from real private IPs
 #   3. Wait for SSH on every instance
 #   4. Bootstrap every instance: git clone + write config.yaml
-#   5. Start services in order: nodes → manipulator → proxies → NLB
-#   6. Run benchmark from the benchmark instance (same subnet → private NLB IP)
+#   5. Start services in order: nodes → manipulator → proxies
+#   6. Start Locust on benchmark nodes against the NLB DNS name
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,11 +27,11 @@ SSH_KEY="${HOME}/.ssh/id_ed25519"
 NODE_COUNT=2
 PROXY_COUNT=1
 INSTANCE_TYPE="t3.micro"             # nodes + proxies + manipulator
-NLB_INSTANCE_TYPE="m7a.xlarge"       # NLB
 BENCHMARK_INSTANCE_TYPE="m7a.xlarge" # benchmark runner
-BENCH_WORKERS=50
+BENCHMARK_COUNT=1
+BENCH_USERS=50
+BENCH_SPAWN_RATE=10
 BENCH_DURATION=60s
-BENCH_SEED=500
 SSH_USER="ec2-user"
 NODE_BASE_PORT=8000
 PROXY_BASE_PORT=8100
@@ -45,11 +45,13 @@ while [[ $# -gt 0 ]]; do
     --nodes)           NODE_COUNT="$2";               shift 2 ;;
     --proxies)         PROXY_COUNT="$2";              shift 2 ;;
     --type)            INSTANCE_TYPE="$2";            shift 2 ;;
-    --nlb-type)        NLB_INSTANCE_TYPE="$2";        shift 2 ;;
+    --nlb-type)        echo "WARN: --nlb-type is ignored; AWS NLB is managed by AWS"; shift 2 ;;
     --benchmark-type)  BENCHMARK_INSTANCE_TYPE="$2";  shift 2 ;;
-    --workers)         BENCH_WORKERS="$2";            shift 2 ;;
+    --benchmark-nodes|--benchmarks) BENCHMARK_COUNT="$2"; shift 2 ;;
+    --users|--workers) BENCH_USERS="$2";              shift 2 ;;
+    --spawn-rate)      BENCH_SPAWN_RATE="$2";         shift 2 ;;
     --duration)        BENCH_DURATION="$2";           shift 2 ;;
-    --seed)            BENCH_SEED="$2";               shift 2 ;;
+    --seed)            echo "WARN: --seed is ignored by the Locust benchmark"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -90,7 +92,7 @@ terraform apply -auto-approve \
   -var="node_count=${NODE_COUNT}" \
   -var="proxy_count=${PROXY_COUNT}" \
   -var="instance_type=${INSTANCE_TYPE}" \
-  -var="nlb_instance_type=${NLB_INSTANCE_TYPE}" \
+  -var="benchmark_count=${BENCHMARK_COUNT}" \
   -var="benchmark_instance_type=${BENCHMARK_INSTANCE_TYPE}" \
   -var="public_key_path=${PUBLIC_KEY_PATH}"
 
@@ -105,10 +107,12 @@ NODE_PRIV_IPS=($(terraform output -json node_private_ips | jq -r '.[]'))
 PROXY_PUB_IPS=($(terraform output -json proxy_public_ips  | jq -r '.[]'))
 PROXY_PRIV_IPS=($(terraform output -json proxy_private_ips | jq -r '.[]'))
 
-NLB_PUB=$(terraform output -raw nlb_public_ip)
-NLB_PRIV=$(terraform output -raw nlb_private_ip)
+NLB_DNS=$(terraform output -raw nlb_dns_name)
 
-BENCHMARK_PUB=$(terraform output -raw benchmark_public_ip)
+BENCHMARK_PUB_IPS=($(terraform output -json benchmark_public_ips | jq -r '.[]'))
+BENCHMARK_PRIV_IPS=($(terraform output -json benchmark_private_ips | jq -r '.[]'))
+BENCHMARK_MASTER_PUB="${BENCHMARK_PUB_IPS[0]}"
+BENCHMARK_MASTER_PRIV="${BENCHMARK_PRIV_IPS[0]}"
 
 cd "$REPO_ROOT"
 
@@ -149,7 +153,7 @@ CONFIG_B64=$(echo "$CONFIG_YAML" | base64)
 
 # ── 4. Wait for SSH ───────────────────────────────────────────────────────────
 echo "==> Waiting for instances to become reachable..."
-ALL_PUB_IPS=("$MANIPULATOR_PUB" "${NODE_PUB_IPS[@]}" "${PROXY_PUB_IPS[@]}" "$NLB_PUB" "$BENCHMARK_PUB")
+ALL_PUB_IPS=("$MANIPULATOR_PUB" "${NODE_PUB_IPS[@]}" "${PROXY_PUB_IPS[@]}" "${BENCHMARK_PUB_IPS[@]}")
 for ip in "${ALL_PUB_IPS[@]}"; do
   wait_for_ssh "$ip"
 done
@@ -196,9 +200,33 @@ done
 wait
 echo "  Proxies started."
 
-# ── 9. Start NLB ─────────────────────────────────────────────────────────────
-echo "==> Starting NLB / HAProxy (${NLB_PUB}:${NLB_PORT})..."
-remote "$NLB_PUB" "sudo bash /opt/utterdb/deploy/scripts/start_nlb.sh"
+# ── 9. Start distributed Locust benchmark ─────────────────────────────────────
+echo "==> Installing Locust on benchmark nodes..."
+for ip in "${BENCHMARK_PUB_IPS[@]}"; do
+  remote "$ip" "sudo bash /opt/utterdb/deploy/scripts/start_benchmark.sh install" &
+done
+wait
+
+echo "==> Starting Locust benchmark (${BENCH_USERS} users, ${BENCH_SPAWN_RATE}/s, ${BENCH_DURATION})..."
+if [[ "${#BENCHMARK_PUB_IPS[@]}" -eq 1 ]]; then
+  remote "$BENCHMARK_MASTER_PUB" \
+    "sudo nohup bash /opt/utterdb/deploy/scripts/start_benchmark.sh local '${NLB_DNS}' '${NLB_PORT}' '${BENCH_USERS}' '${BENCH_SPAWN_RATE}' '${BENCH_DURATION}' > /tmp/utterdb-locust.log 2>&1 < /dev/null &"
+  echo "  local Locust run: ${BENCHMARK_MASTER_PUB}:/tmp/utterdb-locust.log"
+else
+  LOCUST_WORKERS=$(( ${#BENCHMARK_PUB_IPS[@]} - 1 ))
+  remote "$BENCHMARK_MASTER_PUB" \
+    "sudo nohup bash /opt/utterdb/deploy/scripts/start_benchmark.sh master '${NLB_DNS}' '${NLB_PORT}' '${BENCH_USERS}' '${BENCH_SPAWN_RATE}' '${BENCH_DURATION}' '${BENCHMARK_MASTER_PRIV}' '${LOCUST_WORKERS}' > /tmp/utterdb-locust-master.log 2>&1 < /dev/null &"
+  echo "  master: ${BENCHMARK_MASTER_PUB}:/tmp/utterdb-locust-master.log"
+  sleep 5
+  for i in "${!BENCHMARK_PUB_IPS[@]}"; do
+    if [[ "$i" -eq 0 ]]; then
+      continue
+    fi
+    remote "${BENCHMARK_PUB_IPS[$i]}" \
+      "sudo nohup bash /opt/utterdb/deploy/scripts/start_benchmark.sh worker '${NLB_DNS}' '${NLB_PORT}' '${BENCH_USERS}' '${BENCH_SPAWN_RATE}' '${BENCH_DURATION}' '${BENCHMARK_MASTER_PRIV}' > /tmp/utterdb-locust-worker.log 2>&1 < /dev/null &"
+    echo "  worker-${i}: ${BENCHMARK_PUB_IPS[$i]}:/tmp/utterdb-locust-worker.log"
+  done
+fi
 
 # ── 10. Summary ───────────────────────────────────────────────────────────────
 echo ""
@@ -212,14 +240,19 @@ done
 for i in "${!PROXY_PUB_IPS[@]}"; do
   printf " Proxy %-2s     : %s:%s\n" "$i" "${PROXY_PUB_IPS[$i]}" "$(( PROXY_BASE_PORT + i ))"
 done
-printf " NLB          : %s:%s\n" "$NLB_PUB" "$NLB_PORT"
-printf " Benchmark    : %s\n" "$BENCHMARK_PUB"
+printf " NLB          : %s:%s\n" "$NLB_DNS" "$NLB_PORT"
+printf " Locust master: %s\n" "$BENCHMARK_MASTER_PUB"
+for i in "${!BENCHMARK_PUB_IPS[@]}"; do
+  if [[ "$i" -eq 0 ]]; then
+    continue
+  fi
+  printf " Locust worker %-2s: %s\n" "$i" "${BENCHMARK_PUB_IPS[$i]}"
+done
 echo ""
-echo "To SSH into the benchmark instance and run the load test:"
-echo "  ssh -i $SSH_KEY ${SSH_USER}@${BENCHMARK_PUB}"
-echo "  sudo bash /opt/utterdb/deploy/scripts/start_benchmark.sh ${NLB_PRIV} ${NLB_PORT} ${BENCH_WORKERS} ${BENCH_DURATION} ${BENCH_SEED}"
-echo ""
-echo "Or run it directly from here:"
-echo "  ssh -i $SSH_KEY ${SSH_USER}@${BENCHMARK_PUB} \\"
-echo "    sudo bash /opt/utterdb/deploy/scripts/start_benchmark.sh ${NLB_PRIV} ${NLB_PORT} ${BENCH_WORKERS} ${BENCH_DURATION} ${BENCH_SEED}"
+echo "Locust logs:"
+if [[ "${#BENCHMARK_PUB_IPS[@]}" -eq 1 ]]; then
+  echo "  ssh -i $SSH_KEY ${SSH_USER}@${BENCHMARK_MASTER_PUB} 'sudo tail -f /tmp/utterdb-locust.log'"
+else
+  echo "  ssh -i $SSH_KEY ${SSH_USER}@${BENCHMARK_MASTER_PUB} 'sudo tail -f /tmp/utterdb-locust-master.log'"
+fi
 echo "========================================="

@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Run on the NLB instance.  Installs HAProxy, writes config from config.yaml, starts it.
+# Compatibility helper. The AWS NLB itself is provisioned by Terraform.
 set -euo pipefail
 
 APP_DIR=/opt/utterdb
 
-dnf install -y -q haproxy python3 python3-pip
-python3 -m pip install -q --ignore-installed pyyaml
+dnf install -y -q python3
 
 cd "$APP_DIR"
 python3 src/nlb/nlb.py
 
-echo "NLB (HAProxy) started"
+echo "AWS NLB configuration validated"

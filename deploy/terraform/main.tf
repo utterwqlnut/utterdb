@@ -11,6 +11,18 @@ provider "aws" {
   region = var.aws_region
 }
 
+# ── Default VPC/subnets ───────────────────────────────────────────────────────
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
 # ── Key pair ──────────────────────────────────────────────────────────────────
 resource "aws_key_pair" "utterdb" {
   key_name   = "utterdb-key"
@@ -54,12 +66,12 @@ resource "aws_security_group" "utterdb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # NLB client-facing port
+  # Cluster-internal traffic, including distributed Locust master/worker ports.
   ingress {
-    from_port   = var.nlb_port
-    to_port     = var.nlb_port
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+    self      = true
   }
 
   egress {
@@ -118,22 +130,59 @@ resource "aws_instance" "proxy" {
   tags = { Name = "utterdb-proxy-${count.index}" }
 }
 
-# ── NLB / HAProxy (singleton) ─────────────────────────────────────────────────
-resource "aws_instance" "nlb" {
-  ami                    = data.aws_ami.al2023.id
-  instance_type          = var.nlb_instance_type
-  key_name               = aws_key_pair.utterdb.key_name
-  vpc_security_group_ids = [aws_security_group.utterdb.id]
+# ── AWS Network Load Balancer ─────────────────────────────────────────────────
+resource "aws_lb" "nlb" {
+  name                             = "utterdb-nlb"
+  internal                         = false
+  load_balancer_type               = "network"
+  subnets                          = data.aws_subnets.default.ids
+  enable_cross_zone_load_balancing = true
 
   tags = { Name = "utterdb-nlb" }
 }
 
-# ── Benchmark runner (same subnet, hits NLB via private IP) ───────────────────
+resource "aws_lb_target_group" "proxy" {
+  name        = "utterdb-proxy-tg"
+  port        = var.proxy_base_port
+  protocol    = "TCP"
+  target_type = "instance"
+  vpc_id      = data.aws_vpc.default.id
+
+  health_check {
+    enabled             = true
+    protocol            = "TCP"
+    port                = "traffic-port"
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    interval            = 10
+  }
+}
+
+resource "aws_lb_target_group_attachment" "proxy" {
+  count            = var.proxy_count
+  target_group_arn = aws_lb_target_group.proxy.arn
+  target_id        = aws_instance.proxy[count.index].id
+  port             = var.proxy_base_port + count.index
+}
+
+resource "aws_lb_listener" "nlb" {
+  load_balancer_arn = aws_lb.nlb.arn
+  port              = var.nlb_port
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.proxy.arn
+  }
+}
+
+# ── Benchmark runners (same VPC, hit the NLB DNS name) ────────────────────────
 resource "aws_instance" "benchmark" {
+  count                  = var.benchmark_count
   ami                    = data.aws_ami.al2023.id
   instance_type          = var.benchmark_instance_type
   key_name               = aws_key_pair.utterdb.key_name
   vpc_security_group_ids = [aws_security_group.utterdb.id]
 
-  tags = { Name = "utterdb-benchmark" }
+  tags = { Name = "utterdb-benchmark-${count.index}" }
 }
