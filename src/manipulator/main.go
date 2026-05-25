@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -25,7 +24,6 @@ func sendAllNodesHashRing(hR *hashing.HashRing, proxies []string) {
 				conn, err := net.Dial("tcp", addr)
 				if err != nil {
 					time.Sleep(20 * time.Millisecond)
-					fmt.Println("ERR ", i+1, " ", err.Error())
 					continue
 				}
 
@@ -34,13 +32,10 @@ func sendAllNodesHashRing(hR *hashing.HashRing, proxies []string) {
 
 				if err != nil {
 					time.Sleep(20 * time.Millisecond)
-					fmt.Println("ERR ", i+1, " ", err.Error())
 					continue
-				} else {
-					return
 				}
+				return
 			}
-			fmt.Printf("failed to send hash ring to %s after 5 retries\n", addr)
 		}()
 	}
 }
@@ -67,7 +62,6 @@ func handleTcp(hR *hashing.HashRing, conn net.Conn, proxies []string) {
 		switch cmd[0] {
 
 		case "ADDNODE":
-			fmt.Println("Recieved")
 			if len(cmd) != 2 {
 				conn.Write([]byte("ERR invalid Add Node command\n"))
 				continue
@@ -107,7 +101,11 @@ func main() {
 
 	var cfg config.Config
 	err = yaml.Unmarshal(data, &cfg)
-	hashRing := hashing.NewHashRing(cfg.Nodes)
+	replicationFactor := cfg.ReplicationFactor
+	if replicationFactor < 1 {
+		replicationFactor = 1
+	}
+	hashRing := hashing.NewHashRing(cfg.Nodes, replicationFactor)
 
 	for i := range hashRing.Ring {
 		defer hashRing.Ring[i].NodeConn.Conn.Close()
@@ -116,8 +114,8 @@ func main() {
 	fails := make(map[string]int)
 
 	c := cron.New()
-	c.AddFunc("@every 5m", func() { hashRing.HeartBeat(cfg.Proxies, fails) })
-	c.AddFunc("@every 5m", func() { sendAllNodesHashRing(hashRing, cfg.Proxies) })
+	c.AddFunc("@every 5s", func() { hashRing.HeartBeat(cfg.Proxies, fails) })
+	c.AddFunc("@every 5s", func() { sendAllNodesHashRing(hashRing, cfg.Proxies) })
 	c.Start()
 
 	args := os.Args

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/spaolacci/murmur3"
-	"github.com/utterwqlnut/utterdb/protos"
 	pb "github.com/utterwqlnut/utterdb/protos"
 	"github.com/utterwqlnut/utterdb/src/client"
 
@@ -19,7 +18,7 @@ import (
 )
 
 type NodeConn struct {
-	client protos.NodeClient
+	client pb.NodeClient
 	Conn   *grpc.ClientConn
 }
 
@@ -31,9 +30,10 @@ type Node struct {
 }
 
 type HashRing struct {
-	Ring          []*Node
-	globalLock    sync.RWMutex
-	rebalanceLock sync.Mutex
+	Ring              []*Node
+	globalLock        sync.RWMutex
+	rebalanceLock     sync.Mutex
+	ReplicationFactor int
 }
 
 func (hR *HashRing) String() string {
@@ -47,7 +47,7 @@ func (hR *HashRing) String() string {
 	return s
 }
 
-func FromString(s string) *HashRing {
+func FromString(s string, replicationFactor int) *HashRing {
 	nodes := make([]*Node, 0)
 	nodeStrings := strings.Split(s, " ")
 	sort.Strings(nodeStrings)
@@ -57,19 +57,19 @@ func FromString(s string) *HashRing {
 		nodes = append(nodes, NewNode(splt[1], "node_"+strconv.Itoa(i)))
 	}
 
-	hR := HashRing{nodes, sync.RWMutex{}, sync.Mutex{}}
+	hR := HashRing{nodes, sync.RWMutex{}, sync.Mutex{}, replicationFactor}
 	hR.Sort()
 
 	return &hR
 }
 
-func NewHashRing(nodeNames []string) *HashRing {
+func NewHashRing(nodeNames []string, replicationFactor int) *HashRing {
 	nodes := make([]*Node, 0)
 
 	for i := 0; i < len(nodeNames); i++ {
 		nodes = append(nodes, NewNode(nodeNames[i], "node_"+strconv.Itoa(i)))
 	}
-	hR := HashRing{nodes, sync.RWMutex{}, sync.Mutex{}}
+	hR := HashRing{nodes, sync.RWMutex{}, sync.Mutex{}, replicationFactor}
 	hR.Sort()
 	return &hR
 }
@@ -80,44 +80,81 @@ func (hR *HashRing) Sort() {
 	})
 }
 
-// These 3 helper methods are NOT thread safe
-func (hR *HashRing) AddNodeHelper(n *Node) (successor *Node, startHash uint64, endHash uint64) {
-	idx := sort.Search(len(hR.Ring), func(i int) bool {
+func (hR *HashRing) effectiveReplication() int {
+	n := hR.ReplicationFactor
+	if n > len(hR.Ring) {
+		return len(hR.Ring)
+	}
+	if n < 1 {
+		return 1
+	}
+	return n
+}
+
+func (hR *HashRing) ringRange(startIdx, endIdx int) (uint64, uint64) {
+	ringLen := len(hR.Ring)
+	return hR.Ring[(startIdx%ringLen+ringLen)%ringLen].hash,
+		hR.Ring[(endIdx%ringLen+ringLen)%ringLen].hash
+}
+
+func (hR *HashRing) initiateMove(dest *Node, start, end uint64, sourceIP string) error {
+	ctx := context.Background()
+	_, err := dest.NodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: sourceIP})
+	return err
+}
+
+func (hR *HashRing) clearRange(node *Node, start, end uint64) error {
+	ctx := context.Background()
+	_, err := node.NodeConn.client.ClearOldData(ctx, &pb.Range{Start: start, End: end})
+	return err
+}
+
+// These helper methods are NOT thread safe
+func (hR *HashRing) AddNodeHelper(n *Node) (nodeBefore *Node, insertIdx int, startHash uint64, endHash uint64) {
+	insertIdx = sort.Search(len(hR.Ring), func(i int) bool {
 		return hR.Ring[i].hash >= n.hash
 	}) % len(hR.Ring)
 
-	successor = hR.Ring[idx]
-
-	beforeIdx := (idx - 1 + len(hR.Ring)) % len(hR.Ring)
-	startHash = hR.Ring[beforeIdx].hash
+	beforeIdx := (insertIdx - 1 + len(hR.Ring)) % len(hR.Ring)
+	nodeBefore = hR.Ring[beforeIdx]
+	startHash = nodeBefore.hash
 	endHash = n.hash
 
-	return successor, startHash, endHash
+	return nodeBefore, insertIdx, startHash, endHash
 }
-func (hR *HashRing) RemoveNodeHelper(n *Node) (successor *Node, startHash uint64, endHash uint64) {
-	idx := sort.Search(len(hR.Ring), func(i int) bool {
+
+func (hR *HashRing) RemoveNodeHelper(n *Node) (nodeBefore *Node, delIdx int, startHash uint64, endHash uint64) {
+	delIdx = sort.Search(len(hR.Ring), func(i int) bool {
 		return hR.Ring[i].hash >= n.hash
 	})
 
-	afterIdx := (idx + 1) % len(hR.Ring)
-	successor = hR.Ring[afterIdx]
+	beforeIdx := (delIdx - 1 + len(hR.Ring)) % len(hR.Ring)
+	nodeBefore = hR.Ring[beforeIdx]
+	startHash = nodeBefore.hash
+	endHash = n.hash
 
-	beforeIdx := (idx - 1 + len(hR.Ring)) % len(hR.Ring)
+	return nodeBefore, delIdx, startHash, endHash
+}
 
-	startHash = hR.Ring[beforeIdx].hash
-	endHash = n.hash // The range the dying node owned
+func (hR *HashRing) ownerIndex(keyHash uint64) int {
+	return sort.Search(len(hR.Ring), func(i int) bool {
+		return hR.Ring[i].hash >= keyHash
+	}) % len(hR.Ring)
+}
 
-	return successor, startHash, endHash
+func (hR *HashRing) nodesForKey(key string) []*Node {
+	keyHash := murmur3.Sum64([]byte(key))
+	idx := hR.ownerIndex(keyHash)
+	n := hR.effectiveReplication()
+	nodes := make([]*Node, n)
+	for i := 0; i < n; i++ {
+		nodes[i] = hR.Ring[(idx+i)%len(hR.Ring)]
+	}
+	return nodes
 }
 
 func (hR *HashRing) GetNode(key string) *Node {
-	keyHash := murmur3.Sum64([]byte(key))
-
-	idx := sort.Search(len(hR.Ring), func(i int) bool {
-		return hR.Ring[i].hash >= keyHash
-	}) % len(hR.Ring)
-
-	return hR.Ring[idx]
+	return hR.nodesForKey(key)[0]
 }
 
 func NewNode(ip string, name string) *Node {
@@ -137,26 +174,31 @@ func (hR *HashRing) Write(key string, keyType string, value string, valueType st
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	node := hR.GetNode(key)
-	_, err := node.NodeConn.client.Write(ctx, &pb.Data{Key: key,
-		KeyType: keyType, Value: value, ValueType: valueType})
-
-	return err
+	data := &pb.Data{Key: key, KeyType: keyType, Value: value, ValueType: valueType}
+	for _, node := range hR.nodesForKey(key) {
+		_, err := node.NodeConn.client.Write(ctx, data)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (hR *HashRing) Erase(key string, keyType string) error {
 	hR.globalLock.RLock()
 	defer hR.globalLock.RUnlock()
 
-	node := hR.GetNode(key)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	_, err := node.NodeConn.client.Erase(ctx, &pb.Request{Key: key,
-		Type: keyType})
-
-	return err
+	req := &pb.Request{Key: key, Type: keyType}
+	for _, node := range hR.nodesForKey(key) {
+		_, err := node.NodeConn.client.Erase(ctx, req)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (hR *HashRing) Get(key string, keyType string) (string, error) {
@@ -166,15 +208,12 @@ func (hR *HashRing) Get(key string, keyType string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	value, err := node.NodeConn.client.Get(ctx, &pb.Request{Key: key,
-		Type: keyType})
-
+	value, err := node.NodeConn.client.Get(ctx, &pb.Request{Key: key, Type: keyType})
 	if err != nil {
 		return "", err
 	}
 
 	return value.Value, nil
-
 }
 
 func (hR *HashRing) GetRam() string {
@@ -213,25 +252,98 @@ func (hR *HashRing) GetCpu() string {
 	return returnString
 }
 
+func (hR *HashRing) rebalanceReplicasOnAdd(node *Node, insertIdx int) error {
+	ringLen := len(hR.Ring)
+	n := hR.effectiveReplication()
+
+	for i := 1; i < n; i++ {
+		start, end := hR.ringRange(insertIdx-i-1, insertIdx-i)
+		source := hR.Ring[(insertIdx-i+ringLen)%ringLen]
+		if err := hR.initiateMove(node, start, end, source.ip); err != nil {
+			return fmt.Errorf("replica move %d on add: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func (hR *HashRing) clearStaleReplicasOnAdd(newIdx int) error {
+	ringLen := len(hR.Ring)
+	n := hR.effectiveReplication()
+
+	for j := 1; j <= n; j++ {
+		clearNode := hR.Ring[(newIdx+j)%ringLen]
+		start, end := hR.ringRange(newIdx-j-1, newIdx-j)
+		if err := hR.clearRange(clearNode, start, end); err != nil {
+			return fmt.Errorf("clear replica %d on add: %w", j, err)
+		}
+	}
+	return nil
+}
+
 func (hR *HashRing) AddNode(ip string) error {
 	hR.rebalanceLock.Lock()
 	defer hR.rebalanceLock.Unlock()
+
+	if hR.ReplicationFactor > len(hR.Ring)+1 {
+		return errors.New("replication factor exceeds ring size after add")
+	}
+
 	node := NewNode(ip, "node_"+strconv.Itoa(len(hR.Ring)))
+	nodeBefore, insertIdx, start, end := hR.AddNodeHelper(node)
 
-	nodeBefore, start, end := hR.AddNodeHelper(node)
-	ctx := context.Background()
-	_, err := node.NodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: nodeBefore.ip})
+	if err := hR.initiateMove(node, start, end, nodeBefore.ip); err != nil {
+		return fmt.Errorf("primary move on add: %w", err)
+	}
 
-	if err != nil {
+	if err := hR.rebalanceReplicasOnAdd(node, insertIdx); err != nil {
 		return err
 	}
+
 	hR.globalLock.Lock()
 	hR.Ring = append(hR.Ring, node)
 	hR.Sort()
+	newIdx := sort.Search(len(hR.Ring), func(i int) bool {
+		return hR.Ring[i].ip == node.ip
+	})
 	hR.globalLock.Unlock()
 
-	nodeBefore.NodeConn.client.ClearOldData(ctx, &pb.Range{Start: start, End: end})
+	if err := hR.clearStaleReplicasOnAdd(newIdx); err != nil {
+		return err
+	}
 
+	if err := hR.clearRange(nodeBefore, start, end); err != nil {
+		return fmt.Errorf("clear source on add: %w", err)
+	}
+
+	return nil
+}
+
+func (hR *HashRing) rebalanceReplicasOnRemove(delIdx int, successor *Node) error {
+	ringLen := len(hR.Ring)
+	n := hR.effectiveReplication()
+
+	for i := 1; i < n; i++ {
+		start, end := hR.ringRange(delIdx-i-1, delIdx-i)
+		source := hR.Ring[(delIdx+i-1+ringLen)%ringLen]
+		if err := hR.initiateMove(successor, start, end, source.ip); err != nil {
+			return fmt.Errorf("replica move %d on remove: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func (hR *HashRing) clearStaleReplicasOnRemove(delIdx int) error {
+	ringLen := len(hR.Ring)
+	n := hR.effectiveReplication()
+
+	// j=1 would clear data just moved onto the successor
+	for j := 2; j <= n; j++ {
+		clearNode := hR.Ring[(delIdx+j)%ringLen]
+		start, end := hR.ringRange(delIdx-j-1, delIdx-j)
+		if err := hR.clearRange(clearNode, start, end); err != nil {
+			return fmt.Errorf("clear replica %d on remove: %w", j, err)
+		}
+	}
 	return nil
 }
 
@@ -253,17 +365,26 @@ func (hR *HashRing) RemoveNode(ip string) error {
 		return errors.New("IP not found")
 	}
 
-	nodeBefore, start, end := hR.RemoveNodeHelper(hR.Ring[idx])
-	ctx := context.Background()
-	nodeBefore.NodeConn.client.InitiateMove(ctx, &pb.Rebalance{Start: start, End: end, Ip: hR.Ring[idx].ip})
+	if hR.ReplicationFactor > len(hR.Ring) {
+		return errors.New("cannot remove node: replication factor exceeds ring size")
+	}
+
+	deletingNode := hR.Ring[idx]
+	_, delIdx, start, end := hR.RemoveNodeHelper(deletingNode)
+	successorIdx := (delIdx + 1) % len(hR.Ring)
+	successor := hR.Ring[successorIdx]
+
+	hR.initiateMove(successor, start, end, deletingNode.ip)
+
+	hR.rebalanceReplicasOnRemove(delIdx, successor)
+
+	hR.clearStaleReplicasOnRemove(delIdx)
 
 	hR.globalLock.Lock()
-	fmt.Println(hR.Ring[0].name)
 	hR.Ring = append(hR.Ring[:idx], hR.Ring[idx+1:]...)
-	fmt.Println(hR.Ring[0].name)
 	hR.Sort()
 	hR.globalLock.Unlock()
-	fmt.Println()
+
 	return nil
 }
 
@@ -277,7 +398,6 @@ func (hR *HashRing) HeartBeat(proxies []string, fails map[string]int) {
 		if err != nil {
 			fails[node.name] += 1
 		} else {
-			fmt.Println("HeartBeat for node ", node.name, " ALLG")
 			fails[node.name] = 0
 		}
 
@@ -289,11 +409,7 @@ func (hR *HashRing) HeartBeat(proxies []string, fails map[string]int) {
 	hR.globalLock.RUnlock()
 
 	for _, ip := range toBeDeleted {
-		hR.RemoveNode(ip)
-		fmt.Println(hR.Ring[0].name)
-		if len(hR.Ring) > 1 {
-			fmt.Println(hR.Ring[1].name)
-		}
-		time.Sleep(5 * time.Second) // Make sure deletion is fully done
+		_ = hR.RemoveNode(ip)
+		time.Sleep(5 * time.Second)
 	}
 }

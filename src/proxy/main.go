@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -35,7 +34,7 @@ func forwardToManipulator(addr string, msg string) (string, error) {
 
 	return string(buf[:n]), nil
 }
-func handleTcp(hR **hashing.HashRing, conn net.Conn, manipulator string) {
+func handleTcp(hR **hashing.HashRing, conn net.Conn, manipulator string, replicationFactor int) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 
@@ -48,7 +47,6 @@ func handleTcp(hR **hashing.HashRing, conn net.Conn, manipulator string) {
 
 		msg = strings.TrimSpace(msg)
 		cmd := strings.Split(msg, "|")
-		fmt.Println(cmd[0])
 		if len(cmd) == 0 || cmd[0] == "" {
 			conn.Write([]byte("ERR empty command\n"))
 			continue
@@ -100,9 +98,8 @@ func handleTcp(hR **hashing.HashRing, conn net.Conn, manipulator string) {
 			conn.Write([]byte("OK\n"))
 
 		case "NEWRING":
-			fmt.Println("Recieved here")
 			GLOBAL_LOCK.Lock()
-			(*hR) = hashing.FromString(cmd[1])
+			(*hR) = hashing.FromString(cmd[1], replicationFactor)
 			GLOBAL_LOCK.Unlock()
 
 		case "ADDNODE":
@@ -169,7 +166,11 @@ func main() {
 
 	var cfg config.Config
 	err = yaml.Unmarshal(data, &cfg)
-	hashRing := hashing.NewHashRing(cfg.Nodes)
+	replicationFactor := cfg.ReplicationFactor
+	if replicationFactor < 1 {
+		replicationFactor = 1
+	}
+	hashRing := hashing.NewHashRing(cfg.Nodes, replicationFactor)
 
 	for i := range hashRing.Ring {
 		defer hashRing.Ring[i].NodeConn.Conn.Close()
@@ -188,6 +189,6 @@ func main() {
 			continue
 		}
 
-		go handleTcp(&hashRing, conn, cfg.Manipulator)
+		go handleTcp(&hashRing, conn, cfg.Manipulator, replicationFactor)
 	}
 }

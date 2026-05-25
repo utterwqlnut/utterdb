@@ -131,6 +131,7 @@ CONFIG_YAML="nodes:
 ${NODES_YAML}proxies:
 ${PROXIES_YAML}manipulator: ${MANIPULATOR_PRIV}:${MANIPULATOR_PORT}
 nlb_port: ${NLB_PORT}
+replication_factor: 2
 shards: 128
 memory:
   swappiness: 0
