@@ -9,6 +9,7 @@ set -euo pipefail
 
 APP_DIR=/opt/utterdb
 PYTHON_BIN=${PYTHON_BIN:-python3}
+LOCUST_VENV=${LOCUST_VENV:-${APP_DIR}/.locust-venv}
 
 ROLE=${1:-local}
 case "$ROLE" in
@@ -23,18 +24,22 @@ esac
 
 install_locust() {
   if command -v dnf >/dev/null 2>&1; then
-    dnf install -y -q python3 python3-pip python3-devel gcc make python2-devel \
-      || dnf install -y -q python3 python3-pip python3-devel gcc make
+    dnf install -y -q python3 python3-pip python3-devel gcc make
   fi
 
-  "$PYTHON_BIN" -m pip install -q --upgrade pip setuptools wheel
-  "$PYTHON_BIN" -m pip install -q --ignore-installed locust
-  "$PYTHON_BIN" -m locust --version >/dev/null
+  if [[ ! -x "${LOCUST_VENV}/bin/python" ]]; then
+    "$PYTHON_BIN" -m venv "$LOCUST_VENV" \
+      || { command -v dnf >/dev/null 2>&1 && dnf install -y -q python3-virtualenv; "$PYTHON_BIN" -m venv "$LOCUST_VENV"; }
+  fi
+
+  "${LOCUST_VENV}/bin/python" -m pip install -q --upgrade pip wheel
+  "${LOCUST_VENV}/bin/python" -m pip install -q locust
+  "${LOCUST_VENV}/bin/python" -m locust --version >/dev/null
 }
 
 if [[ "$ROLE" == "install" ]]; then
   install_locust
-  echo "Locust installed for $("$PYTHON_BIN" --version 2>&1)"
+  echo "Locust installed in ${LOCUST_VENV}"
   exit 0
 fi
 
@@ -52,7 +57,7 @@ install_locust
 pkill -f "locust.*src/test/benchmark.py" 2>/dev/null || true
 
 LOCUST_CMD=(
-  "$PYTHON_BIN" -m locust
+  "${LOCUST_VENV}/bin/python" -m locust
   -f src/test/benchmark.py
   --host "tcp://${NLB_ENDPOINT}:${NLB_PORT}"
 )
